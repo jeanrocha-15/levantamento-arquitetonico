@@ -64,7 +64,7 @@ export function readSnapshot(value: unknown): StoredWorkspace {
   if(!data.projects.every(project=>project.roomPlacements===undefined || Array.isArray(project.roomPlacements) && project.roomPlacements.every((p,index,list)=>p && typeof p.roomId==='string' && typeof p.floorId==='string' && [p.x,p.y,p.rotation].every(value=>typeof value==='number' && Number.isFinite(value)) && list.findIndex(other=>other.roomId===p.roomId)===index && project.floors.some(f=>f.id===p.floorId && (function contains(rooms:Room[]):boolean{return rooms.some(r=>r.id===p.roomId || contains(r.subrooms))})(f.rooms))))) throw new Error('Posições da Planta Geral inválidas. Os dados existentes foram preservados.')
   if(!data.projects.every(p=>p.openingCounters===undefined || !!p.openingCounters && ['door','window','gap'].every(key=>counter(p.openingCounters![key as keyof typeof p.openingCounters])))) throw new Error('Numeração de aberturas inválida. Os dados foram preservados.')
   if(!data.projects.every(p=>p.spatialConnections===undefined || Array.isArray(p.spatialConnections) && p.spatialConnections.every(c=>entity(c) && ['opening','corner','shared_wall','manual'].includes(c.type) && [c.a,c.b].every(side=>!!side && typeof side.roomId==='string' && (side.elementId===undefined || typeof side.elementId==='string') && (side.face===undefined || ['internal','external'].includes(side.face))) && (c.orientation===undefined || ['normal','inverted'].includes(c.orientation))))) throw new Error('Conexões espaciais inválidas. Os dados foram preservados.')
-  if (record.schemaVersion < SCHEMA_VERSION) return { ...record, schemaVersion: SCHEMA_VERSION, data: { ...data, projects: data.projects.map(project => { const migrated = ensureProjectMetadata(project); return reconcileRelationships({ ...migrated, floors: migrated.floors.map(floor => ({ ...floor, rooms: floor.rooms.map(migrateRoomObjects).map(migrateRoomPhotos) })) }) }) } }
+  if (record.schemaVersion < SCHEMA_VERSION) return { ...record, schemaVersion: SCHEMA_VERSION, data: { ...data, projects: data.projects.map(project => { const migrated = ensureProjectMetadata(project); return omitUndefined(reconcileRelationships({ ...migrated, floors: migrated.floors.map(floor => ({ ...floor, rooms: floor.rooms.map(migrateRoomObjects).map(migrateRoomPhotos) })) })) }) } }
   return record
 }
 // The synchronous journal protects edits made immediately before closing the page.
@@ -127,4 +127,12 @@ export async function saveWorkspace(snapshot: StoredWorkspace): Promise<void> {
 export function writeJournal(snapshot: StoredWorkspace) { localStorage.setItem(JOURNAL_KEY, encodeSnapshot(snapshot)) }
 export function clearJournal(snapshot: StoredWorkspace) {
   try { const current = localStorage.getItem(JOURNAL_KEY); if (current && decodeSnapshot(current).revision === snapshot.revision) localStorage.removeItem(JOURNAL_KEY) } catch { /* Never remove an unreadable or newer journal. */ }
+}
+
+// JSON omits absent optional properties; keep migrated data in that same shape
+// without serializing or normalizing original numeric measurements.
+function omitUndefined<T>(value:T):T {
+  if(Array.isArray(value))return value.map(omitUndefined) as T
+  if(value && typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([,v])=>v!==undefined).map(([k,v])=>[k,omitUndefined(v)])) as T
+  return value
 }

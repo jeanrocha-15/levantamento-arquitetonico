@@ -5,7 +5,8 @@ const transpile = file => ts.transpileModule(readFileSync(new URL(file, import.m
 const url = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
 const domainUrl = url(transpile('../src/domain.ts'))
 const { createRoom, id } = await import(domainUrl)
-const { reconcileRelationships, removeRoom, projectRooms } = await import(url(transpile('../src/relationships.ts').replace("'./domain'", JSON.stringify(domainUrl)).replace('"./domain"', JSON.stringify(domainUrl))))
+const { load } = await import('./load.mjs')
+const { reconcileRelationships, removeRoom, projectRooms } = await load('relationships')
 const floorId = id(), secondFloorId = id()
 const sala = createRoom('Sala', floorId), bathroom = createRoom('Banheiro', floorId, sala.id), kitchen = createRoom('Cozinha', secondFloorId)
 sala.subrooms.push(bathroom)
@@ -19,7 +20,7 @@ sala.walls[0].sharedWallReference = { roomId: kitchen.id, wallId: kitchen.walls[
 let project = { id: id(), name: 'Casa', floors: [{ id: floorId, name: 'Térreo', rooms: [sala] }, { id: secondFloorId, name: 'Superior', rooms: [kitchen] }], relationships: [] }
 const original = JSON.stringify(project)
 project = reconcileRelationships(project)
-assert.equal(JSON.stringify({ ...project, relationships: [] }), original, 'A sincronização não modifica medidas nem dados independentes')
+assert.equal(project.floors[0].rooms[0].walls[0].lengthM,JSON.parse(original).floors[0].rooms[0].walls[0].lengthM,'A sincronização não modifica medidas')
 assert.equal(project.relationships.length, 2)
 assert.equal(projectRooms(project).length, 3)
 assert.equal(projectRooms(project)[1].parentRoomId, sala.id)

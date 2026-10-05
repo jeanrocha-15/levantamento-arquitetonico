@@ -1,3 +1,4 @@
+import { nextVisualSequence } from './visualIds'
 import { getCorners } from './corners'
 import type { Opening, Project, Room, SpatialConnection } from './models'
 import { generateId } from './domain'
@@ -11,18 +12,19 @@ export function availableCounterpart(opening:Opening,sourceRoomId:string,candida
   return candidate.id!==opening.id && candidate.type===opening.type && candidate.type!=='window' && (!candidate.connectedRoomId || candidate.connectedRoomId===sourceRoomId) && (!candidate.connectedOpeningId || candidate.connectedOpeningId===opening.id)
 }
 export function nextProjectOpeningSequence(project:Project,type:Opening['type']) {
-  return Math.max(project.openingCounters?.[type]??0,...allRooms(project).flatMap(r=>r.openings.filter(o=>o.type===type).map(o=>Number(/(\d+)$/.exec(o.label)?.[1]??0))))+1
+  return nextVisualSequence(allRooms(project).flatMap(r=>r.openings.filter(o=>o.type===type).map(o=>o.label)),{door:'P',window:'J',gap:'V'}[type])
 }
 // Visual IDs identify physical openings project-wide; UUIDs remain structural IDs.
 export function ensureUniqueOpeningLabels(project:Project):Project {
   const rooms=allRooms(project),openings=new Map(rooms.flatMap(r=>r.openings.map(o=>[o.id,o] as const))),labels=new Map<string,string>(),used=new Set<string>()
-  const counters={door:nextProjectOpeningSequence(project,'door')-1,window:nextProjectOpeningSequence(project,'window')-1,gap:nextProjectOpeningSequence(project,'gap')-1}
+  const counters={door:0,window:0,gap:0}
+  const reserved=new Set([...openings.values()].map(o=>o.label))
   const prefixes={door:'P',window:'J',gap:'V'}
   for(const opening of openings.values()) {
     if(labels.has(opening.id))continue
     let label=opening.label
-    if(!new RegExp(`^${prefixes[opening.type]}\\d+$`).test(label)||used.has(label))label=`${prefixes[opening.type]}${String(++counters[opening.type]).padStart(2,'0')}`
-    used.add(label);labels.set(opening.id,label)
+    if(!new RegExp(`^${prefixes[opening.type]}\\d+$`).test(label)||used.has(label)){const sequence=nextVisualSequence(reserved,prefixes[opening.type]);label=`${prefixes[opening.type]}${String(sequence).padStart(2,'0')}`;reserved.add(label)}
+    used.add(label);labels.set(opening.id,label);counters[opening.type]=Math.max(counters[opening.type],Number(/(\d+)$/.exec(label)?.[1]??0))
     const peer=opening.connectedOpeningId?openings.get(opening.connectedOpeningId):undefined
     if(peer?.connectedOpeningId===opening.id && peer.type===opening.type)labels.set(peer.id,label)
   }

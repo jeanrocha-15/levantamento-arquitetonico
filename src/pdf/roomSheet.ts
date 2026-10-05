@@ -2,7 +2,7 @@ import { roomLabelPosition } from './labelPosition'
 import { columnProfilePoints } from '../structural'
 import { buildPlanRoom,planBounds } from '../floorPlan'
 import { architecturalPoints } from './architecturalPoints'
-import { drawTitleBlock,defaultPdfLayers } from './sheetDecorations'
+import { drawTitleBlock,defaultPdfLayers,drawObjectCaption } from './sheetDecorations'
 import type { PdfLayers } from './sheetDecorations'
 import { buildWallFaces } from '../wallFaces'
 import type { Floor, Project, Room } from '../models'
@@ -105,7 +105,7 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
     else if (item.object.shape === 'circle') page.circle(c, mmOnPaper(item.widthM, option.scale) / 2, { width: .2, gray: .3 })
     else if (item.object.shape === 'line') page.line(bounds[0], bounds[bounds.length - 1], { width: .3, gray: .3 })
     else page.polyline(bounds, { width: .2, gray: .3 }, true)
-    page.text({ x: c.x, y: c.y + 1 }, [layers.ids?item.object.displayId:'',layers.names?item.object.name:'',layers.measurements?objectDimensionsLabel(item.object,unit):''].filter(Boolean).join(' '), 2.2, { align: 'center', gray: .3 })
+    drawObjectCaption(page,c,[layers.ids?item.object.displayId:'',layers.names?item.object.name:'',layers.measurements?objectDimensionsLabel(item.object,unit):''],item.widthM*k)
   }
   const roomLabel=[layers.ids?room.displayId:'',layers.names?room.name:''].filter(Boolean).join(' — '),visibleObjects=buildPlanRoom(room).objects.filter(o=>o.object.category==='structural'?layers.structural:o.object.category==='equipment'?layers.equipment:layers.objects)
   if(roomLabel)page.text(roomLabelPosition(vertices,visibleObjects.map(o=>o.bounds.map(toPaper)),roomLabel),roomLabel,3,{align:'center',font:'bold'})

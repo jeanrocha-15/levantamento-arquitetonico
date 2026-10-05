@@ -98,7 +98,7 @@ assert.equal(removed.internalWalls[0].lengthM, sala.internalWalls[0].lengthM)
 assert.equal(removed.diagonals[0].lengthM, sala.diagonals[0].lengthM)
 assert.ok(removed.corners.every(corner => !corner.wallIds.includes(sala.walls[0].id)))
 assert.ok(removed.diagonals[0].cornerIds.every(cornerId => !cornerId || removed.corners.some(corner => corner.id === cornerId)))
-assert.equal(wallLabel(nextWallIndex(removed)), 'E')
+assert.equal(wallLabel(nextWallIndex(removed)), 'A')
 project = { ...project, floors: project.floors.map(floor => ({ ...floor, rooms: floor.rooms.map(room => room.id === kitchen.id ? removePerimeterWall(room, kitchen.walls[0].id) : room) })) }
 project = reconcileRelationships(project)
 assert.equal(project.floors[0].rooms[0].walls[2].sharedWallReference, undefined)

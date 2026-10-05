@@ -1,3 +1,4 @@
+import { nextVisualSequence } from './visualIds'
 import type { Project,Roof,RoofWater } from './models'
 import { generateId } from './domain'
 export const roofDirections={north:'Norte / para cima',east:'Leste / direita',south:'Sul / para baixo',west:'Oeste / esquerda'}
@@ -8,7 +9,7 @@ export function roofSlope(water:RoofWater) {
   const rise=high-low
   return {riseM:rise,percent:rise/projection*100,degrees:Math.atan2(rise,projection)*180/Math.PI}
 }
-export function nextRoofSequence(project:Project) {return Math.max(project.roofCounter ?? 0,...(project.roofs ?? []).map(r=>Number(/^TEL-(\d+)$/.exec(r.displayId)?.[1] ?? 0)))+1}
+export function nextRoofSequence(project:Project) {return nextVisualSequence((project.roofs??[]).map(r=>r.displayId),'TEL')}
 export function roofWaters(count:number):RoofWater[] {
   return Array.from({length:count},(_,index)=>({id:generateId(),displayId:`AG-${String(index+1).padStart(2,'0')}`,highSide:'',lowSide:'',highHeightM:null,lowHeightM:null,projectionM:null,direction:'' as const}))
 }

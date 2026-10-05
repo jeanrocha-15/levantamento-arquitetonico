@@ -95,7 +95,9 @@ export function reconcileRelationships(project: Project, previous?: Project): Pr
     const hasElement = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...getCorners(room.walls,room.corners)].some(element => element.id === elementId)
     return source && target && source.id !== target.id && hasElement(source, item.sourceElementId) && hasElement(target, item.targetElementId)
   })
-  const validIds = new Set([...retained, ...generated].map(item => item.id))
-  const clearDivision = (room: Room): Room => ({ ...room, internalWalls: room.internalWalls.map(wall => ({ ...wall, formalDivisionRelationshipId: wall.formalDivisionRelationshipId && validIds.has(wall.formalDivisionRelationshipId) ? wall.formalDivisionRelationshipId : undefined })), subrooms: room.subrooms.map(clearDivision) })
-  return reconcileSpatialConnections({ ...project, floors: floors.map(floor => ({ ...floor, rooms: floor.rooms.map(clearDivision) })), relationships: [...retained, ...generated] })
+  const seen=new Set<string>()
+  const unique=generated.filter(r=>{const key=r.type+[`${r.sourceRoomId}:${r.sourceElementId??''}`,`${r.targetRoomId}:${r.targetElementId??''}`].sort().join('|');if(seen.has(key))return false;seen.add(key);return true})
+  const validIds = new Set([...retained, ...unique].map(item => item.id))
+  const clearDivision = (room: Room): Room => ({ ...room, internalWalls: room.internalWalls.map(wall => !wall.formalDivisionRelationshipId || validIds.has(wall.formalDivisionRelationshipId)?wall:{...wall,formalDivisionRelationshipId:undefined}), subrooms: room.subrooms.map(clearDivision) })
+  return reconcileSpatialConnections({ ...project, floors: floors.map(floor => ({ ...floor, rooms: floor.rooms.map(clearDivision) })), relationships: [...retained, ...unique] })
 }

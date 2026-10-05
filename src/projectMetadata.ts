@@ -1,3 +1,4 @@
+import { nextVisualSequence } from './visualIds'
 import type { Project, Room } from './models'
 import { isMeasurementUnit } from './units'
 export const roomDisplayId = (sequence: number) => `AMB-${String(sequence).padStart(3, '0')}`
@@ -17,4 +18,9 @@ export function ensureProjectMetadata(project: Project): Project {
   })
   const floors = project.floors.map(floor => ({ ...floor, rooms: migrate(floor.rooms) }))
   return { ...project, measurementUnit: isMeasurementUnit(project.measurementUnit) ? project.measurementUnit : 'm', roomDisplayCounter: counter, floors }
+}
+
+export function nextRoomSequence(project:Project) {
+  const visit=(rooms:Room[]):string[]=>rooms.flatMap(r=>[r.displayId??'',...visit(r.subrooms)])
+  return nextVisualSequence(project.floors.flatMap(f=>visit(f.rooms)),'AMB')
 }

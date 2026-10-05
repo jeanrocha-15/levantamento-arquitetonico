@@ -1,3 +1,4 @@
+import { roomGhosts } from './roomGhosts'
 import { buildWallFaces } from './wallFaces'
 import RoomObjectSketch from './RoomObjectSketch'
 import { buildObjectPlacements, fitObjectsSketch } from './roomObjects'
@@ -5,7 +6,7 @@ import { useMeasurements } from './Measurement'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { LABEL_SIZES, sketchLabelScale } from './sketchPreferences'
-import type { LabelOffsets, Room } from './models'
+import type { LabelOffsets, Project, Room } from './models'
 import { DragProvider, Movable, useLabelDrag } from './sketchDrag'
 import { useSketchZoom } from './sketchZoom'
 import { buildPerimeter } from './geometry'
@@ -21,7 +22,7 @@ import type { RoomGeometry } from './roomGeometry'
 const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 // No celular, o croqui recolhido é uma miniatura fixa: zoom só com o croqui expandido.
 const compactLayout = () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 800px)').matches
-export default function Sketch({ room, survey, focusElementId, selectedObjectId, onSelectObject, variant = 'panel', onLabelOffsetsChange, onFocusField, onObjectsChange, onLabelScaleChange }: { room?: Room; survey?: RoomGeometry; focusElementId?: string; selectedObjectId?: string; onSelectObject?: (id: string) => void; variant?: 'panel' | 'report'; onLabelOffsetsChange?: (offsets: LabelOffsets) => void; onFocusField?: (elementId: string, field: string) => void; onObjectsChange?: (objects: NonNullable<Room['objects']>) => void; onLabelScaleChange?: (scale: number) => void }) {
+export default function Sketch({ project, room, survey, focusElementId, selectedObjectId, onSelectObject, variant = 'panel', onLabelOffsetsChange, onFocusField, onObjectsChange, onLabelScaleChange }: { project?:Project; room?: Room; survey?: RoomGeometry; focusElementId?: string; selectedObjectId?: string; onSelectObject?: (id: string) => void; variant?: 'panel' | 'report'; onLabelOffsetsChange?: (offsets: LabelOffsets) => void; onFocusField?: (elementId: string, field: string) => void; onObjectsChange?: (objects: NonNullable<Room['objects']>) => void; onLabelScaleChange?: (scale: number) => void }) {
   const { unit, format } = useMeasurements()
   const [expanded, setExpanded] = useState(false)
   const [arrange, setArrange] = useState(false)
@@ -41,7 +42,8 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
   const internalGeometry = useMemo(() => fitInternalWallsSketch(perimeter, internalWallLayout.placements), [perimeter, internalWallLayout])
   const objectPlacements = useMemo(() => buildObjectPlacements(room?.objects ?? [], [...perimeter.segments,...internalWallLayout.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))]), [room?.objects, perimeter, internalWallLayout])
   const envelope=useMemo(()=>{const openings=survey?.openings ?? buildOpeningLayout(perimeter,room?.walls ?? [],room?.corners ?? [],room?.openings ?? [],internalWallLayout.placements);return [...buildWallFaces(perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room?.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges]))).values(),...buildWallFaces(internalWallLayout.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room?.wallMeasurementFace ?? 'internal'}))).values()].flat().flatMap(f=>[f.start,f.end])},[perimeter,survey,room?.walls,room?.corners,room?.openings,room?.wallMeasurementFace,internalWallLayout])
-  const geometry = useMemo(() => fitObjectsSketch(internalGeometry, objectPlacements, [...internalWallLayout.placements.flatMap(placement => [placement.start, placement.end]),...envelope]), [internalGeometry, objectPlacements, internalWallLayout,envelope])
+  const ghosts=useMemo(()=>project&&room?roomGhosts(project,room):[],[project,room])
+  const geometry = useMemo(() => fitObjectsSketch(internalGeometry, objectPlacements, [...internalWallLayout.placements.flatMap(placement => [placement.start, placement.end]),...envelope,...ghosts.flatMap(g=>g.segments.flatMap(s=>[s.start,s.end]))]), [internalGeometry, objectPlacements, internalWallLayout,envelope,ghosts])
   const labelLayout = useMemo(() => getSketchLabelLayout(geometry, unit), [geometry, unit])
   const internalWallLabels = useMemo(() => placeInternalWallLabels(internalWallLayout.placements, geometry.project, labelLayout.boxes, unit), [internalWallLayout, geometry, labelLayout, unit])
   const openingLayout = useMemo(() => survey?.openings ?? buildOpeningLayout(geometry, room?.walls ?? [], room?.corners ?? [], room?.openings ?? [],internalWallLayout.placements), [survey, geometry, room?.walls, room?.corners, room?.openings,internalWallLayout])
@@ -72,6 +74,7 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
         const start = geometry.project(geometry.segments[0].start), end = geometry.project(geometry.segments.at(-1)!.end)
         return <g className="closure-gap" pointerEvents="none"><title>Diferença de fechamento; trecho ilustrativo, sem parede adicionada</title><line x1={start.x} y1={start.y} x2={end.x} y2={end.y}/><circle cx={end.x} cy={end.y} r="3"/></g>
       })()}
+      {ghosts.map(ghost=><g key={ghost.room.id} className="room-ghost" opacity=".3" pointerEvents="none"><title>{`${ghost.room.displayId} — ${ghost.room.name}: ambiente anexo, croqui independente`}</title>{ghost.segments.map((segment,index)=>{const a=geometry.project(segment.start),b=geometry.project(segment.end);return <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="currentColor" strokeDasharray="5 4"/>})}{ghost.segments[0]&&<text x={geometry.project(ghost.segments[0].start).x} y={geometry.project(ghost.segments[0].start).y-8} fontSize="10">{ghost.room.displayId} {ghost.room.name}</text>}</g>)}
       {geometry.segments.map((segment, index) => {
         const start = geometry.project(segment.start), end = geometry.project(segment.end)
         const { x: dx, y: dy } = segment.direction

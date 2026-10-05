@@ -1,10 +1,11 @@
+import { nextVisualSequence } from './visualIds'
 import type { Room, RoomObject, StructuralMaterial, StructuralProfile } from './models'
 import { generateId } from './domain'
 export const materialNames:Record<StructuralMaterial,string>={cast_concrete:'Concreto moldado in loco',precast_concrete:'Concreto pré-moldado',steel:'Aço',wood:'Madeira',structural_masonry:'Alvenaria estrutural',other:'Outro'}
 export const profileNames:Record<StructuralProfile,string>={square:'Quadrado',rectangular:'Retangular',circular:'Circular',I:'I',H:'H',T:'T',L:'L','U/C':'U/C',tubular:'Tubular',custom:'Personalizada'}
 export function nextStructuralSequence(room:Room,kind:'beam'|'column') {
   const prefix=kind==='column'?'PIL':'VIG'
-  return Math.max(room.structuralCounters?.[kind] ?? 0,...(room.objects ?? []).map(o=>Number(new RegExp(`^${prefix}-(\\d+)$`).exec(o.displayId)?.[1] ?? 0)))+1
+  return nextVisualSequence((room.objects??[]).map(o=>o.displayId),prefix)
 }
 export function createStructuralObject(room:Room,kind:'beam'|'column'):RoomObject {
   return {id:generateId(),roomId:room.id,shape:'rectangle',position:{xM:0,yM:0},rotationDegrees:0,displayId:`${kind==='column'?'PIL':'VIG'}-${String(nextStructuralSequence(room,kind)).padStart(3,'0')}`,name:kind==='column'?'Pilar':'Viga',category:'structural',structuralKind:kind,technicalItemKey:kind==='column'?'columns':'beams',profile:undefined,dimensions:{widthM:null,depthM:null,heightM:null,lengthM:null}}

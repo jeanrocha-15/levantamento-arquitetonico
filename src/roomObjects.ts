@@ -1,3 +1,4 @@
+import { nextVisualSequence } from './visualIds'
 import { buildPerimeter } from './geometry'
 import { buildInternalWallLayout } from './internalWalls'
 import { structuralVerification } from './structural'
@@ -10,7 +11,7 @@ import type { MeasurementUnit } from './units'
 export const objectCategoryNames: Record<RoomObjectCategory, string> = { furniture: 'Móvel', equipment: 'Equipamento', object: 'Objeto', other: 'Outro', structural: 'Estrutural' }
 export const objectShapeNames: Record<RoomObjectShape, string> = { rectangle: 'Retângulo', circle: 'Círculo', line: 'Linha/segmento' }
 export function nextObjectSequence(room: Room): number {
-  return Math.max(room.objectCounter ?? 0, ...(room.objects ?? []).map(object => Number(/^OBJ-(\d+)$/.exec(object.displayId)?.[1] ?? 0))) + 1
+  return nextVisualSequence((room.objects??[]).map(o=>o.displayId),'OBJ')
 }
 export function createRoomObject(room: Room): RoomObject {
   return { id: generateId(), displayId: `OBJ-${String(nextObjectSequence(room)).padStart(3, '0')}`, roomId: room.id, name: 'Novo objeto', category: 'object', shape: 'rectangle', dimensions: { widthM: null, depthM: null }, position: { xM: 0, yM: 0 }, rotationDegrees: 0 }

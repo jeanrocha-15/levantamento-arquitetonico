@@ -1,3 +1,4 @@
+import { mergeScopedProject } from './exportScope'
 import type { Project, Room } from './models'
 import type { StoredWorkspace, WorkspaceData } from './storage'
 import { createSnapshot, decodeSnapshot, encodeSnapshot, restoreNavigation } from './storage'
@@ -40,9 +41,9 @@ export function importProjects(current: WorkspaceData, backup: StoredWorkspace):
   const projects = current.projects.map(project => {
     const match = incoming.find(item => item.id === project.id)
     if (!match) return project
-    replaced.push(match.name); return match
+    replaced.push(match.name); return mergeScopedProject(project,match)
   })
-  for (const project of incoming) if (!current.projects.some(item => item.id === project.id)) { projects.push(project); added.push(project.name) }
+  for (const project of incoming) if (!current.projects.some(item => item.id === project.id)) { projects.push({...project,exportSelection:undefined}); added.push(project.name) }
   const target = incoming[0]
   return { data: restoreNavigation({ projects, projectId: target.id, floorId: target.floors[0]?.id ?? '', roomId: target.floors[0]?.rooms[0]?.id ?? '' }), added, replaced }
 }

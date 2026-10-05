@@ -20,3 +20,10 @@ export function drawTitleBlock(page:PdfPage,{project,floor,title,option,date=new
  notes.flatMap(n=>wrapText(n,width,2.5)).slice(0,2).forEach((n,i)=>page.text({x,y:top+47+i*3},n,2.5))
  page.text({x,y:top+58},'Imprimir em 100% / Tamanho real para preservar a escala.',2.6,{font:'bold'})
 }
+
+// Separate captions avoid concatenated labels extending across small objects.
+export function drawObjectCaption(page:PdfPage,center:{x:number;y:number},labels:string[],widthMm:number) {
+ const size=2,lines=labels.filter(Boolean).flatMap(label=>wrapText(label,Math.max(12,widthMm-2),size))
+ const top=center.y-(lines.length-1)*1.25+.7
+ lines.forEach((line,index)=>page.text({x:center.x,y:top+index*2.5},line,size,{align:'center',gray:.3}))
+}

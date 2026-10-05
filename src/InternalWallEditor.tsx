@@ -1,3 +1,4 @@
+import { nextVisualSequence } from './visualIds'
 import { ElementPhotos } from './PhotoActions'
 import { MeasurementInput, useMeasurements } from './Measurement'
 import { ManualMarkers } from './ChecklistPanel'
@@ -12,7 +13,7 @@ export default function InternalWallEditor({ room, onChange, checks }: { room: R
   function addInternalWall() {
     const wall = room.walls[0]
     const reference = getWallReferences(room.walls, room.corners, wall.id)[0]
-    const sequence = (room.internalWallCounter ?? 0) + 1
+    const sequence = nextVisualSequence(room.internalWalls.map(w=>w.label),'PI')
     const internalWall: InternalWall = { id: id(), label: internalWallLabel(sequence), origin: { type: 'perimeter_wall', wallId: wall.id, referenceCornerId: reference.id, distanceM: null }, lengthM: null, orientationDegrees: 90, thicknessM: .15, heightM: null }
     onChange({ ...room, internalWalls: [...room.internalWalls, internalWall], internalWallCounter: sequence })
   }

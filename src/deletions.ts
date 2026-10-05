@@ -1,3 +1,4 @@
+import { firstFreeNumber } from './visualIds'
 import type { Room } from './models'
 import { getCorners } from './corners'
 // Preserve measured values on dependent elements; only their deleted references are cleared.
@@ -12,9 +13,5 @@ export function removePerimeterWall(room: Room, wallId: string): Room {
   }
 }
 export function nextWallIndex(room: Room): number {
-  return room.walls.reduce((maximum, wall) => {
-    let index = 0
-    for (const letter of wall.label) index = index * 26 + letter.charCodeAt(0) - 64
-    return Math.max(maximum, index)
-  }, 0)
+  return firstFreeNumber(room.walls.map(wall=>{let index=0;for(const letter of wall.label)index=index*26+letter.charCodeAt(0)-64;return index}))-1
 }

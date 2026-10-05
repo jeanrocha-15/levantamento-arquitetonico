@@ -4,8 +4,7 @@ import { MeasurementInput, useMeasurements } from './Measurement'
 import { ManualMarkers } from './ChecklistPanel'
 import type { Opening, OpeningType, Room, Project } from './models'
 import { id, createRoom, updateRoom } from './domain'
-import { roomDisplayId } from './projectMetadata'
-import { projectRooms } from './relationships'
+import { roomDisplayId, nextRoomSequence } from './projectMetadata'
 import { doorDescription, getWallReferences, openingLabel, openingNames } from './openings'
 import type { OpeningCheck } from './openings'
 import { OpeningConnection } from './RoomConnections'
@@ -69,7 +68,7 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
         <p className="opening-summary">{opening.label} · Parede {wall?.label ?? '?'} · {format(opening.widthM, false)} × {format(opening.heightM)}{opening.type === 'window' ? ` · P=${format(opening.sillHeightM)}` : ''}<br/>{format(opening.offsetM)} do canto {reference?.label ?? '?'} até a borda mais próxima.{opening.type === 'door' && <><br/>{doorDescription(opening)}.</>}</p>
         <OpeningElevation room={room} opening={opening}/>
         {opening.type !== 'window' && <OpeningConnection floorId={room.floorId} opening={opening} roomId={room.id} rooms={relatedRooms} onChange={update} onCreate={onProjectChange?(name,parentId)=>{
-          const sequence=Math.max(project.roomDisplayCounter??0,...projectRooms(project).map(r=>Number(/^AMB-(\d+)$/.exec(r.displayId??'')?.[1]??0)))+1
+          const sequence=nextRoomSequence(project)
           const target={...createRoom(name,room.floorId,parentId),displayId:roomDisplayId(sequence)}
           const current={...room,openings:room.openings.map(o=>o.id===opening.id?{...o,connectedRoomId:target.id,connectedOpeningId:undefined}:o)}
           onProjectChange({...project,roomDisplayCounter:sequence,floors:project.floors.map(f=>f.id===room.floorId?{...f,rooms:parentId?updateRoom(updateRoom(f.rooms,room.id,()=>current),parentId,r=>({...r,subrooms:[...r.subrooms,target]})):[...updateRoom(f.rooms,room.id,()=>current),target]}:f)})

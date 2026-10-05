@@ -19,7 +19,7 @@ export default function ExportPanel({ workspace, project, floor, room, onImport,
       if (file.size > 20 * 1024 * 1024) throw new Error('O arquivo é grande demais para um backup do Campo (máximo 20 MB).')
       const backup = parseBackup(await file.text())
       const result = importProjects(workspace, backup)
-      if (result.replaced.length && !window.confirm(`O backup contém ${result.replaced.length === 1 ? 'o projeto' : 'os projetos'} “${result.replaced.join('”, “')}”, que já ${result.replaced.length === 1 ? 'existe' : 'existem'} aqui. Substituir pela versão do backup?`)) { setMessage({ type: 'ok', text: 'Importação cancelada. Nada foi alterado.' }); return }
+      if (result.replaced.length && !window.confirm(`O backup contém ${result.replaced.length === 1 ? 'o projeto' : 'os projetos'} “${result.replaced.join('”, “')}”, que já ${result.replaced.length === 1 ? 'existe' : 'existem'} aqui. ${backup.data.projects.some(p=>p.exportSelection)?'Restaurar somente o ambiente/pavimento exportado, preservando o restante do projeto?':'Substituir pela versão do backup?'}`)) { setMessage({ type: 'ok', text: 'Importação cancelada. Nada foi alterado.' }); return }
       onImport(result.data)
       setMessage({ type: 'ok', text: [result.added.length ? `Adicionado(s): ${result.added.join(', ')}.` : '', result.replaced.length ? `Substituído(s): ${result.replaced.join(', ')}.` : ''].filter(Boolean).join(' ') || 'Backup importado.' })
     } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Não foi possível importar o arquivo.' }) }
