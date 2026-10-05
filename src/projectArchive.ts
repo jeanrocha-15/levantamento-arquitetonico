@@ -51,14 +51,14 @@ export async function createProjectArchive(data: WorkspaceData, projectId: strin
 export function readProjectArchive(bytes: Uint8Array): ArchiveContents {
   if (bytes.byteLength > MAX_ARCHIVE_BYTES) throw new Error('O arquivo é grande demais (máximo 500 MB). Nada foi alterado.')
   let entries: Record<string, Uint8Array>
-  try { entries = unzipSync(bytes) } catch { throw new Error('O arquivo não é um projeto do Campo (.levantamento/.zip ilegível). Nada foi alterado.') }
+  try { entries = unzipSync(bytes) } catch { throw new Error('O arquivo não é um projeto do LAC (.levantamento/.zip ilegível). Nada foi alterado.') }
   const json = entries['project.json']
   if (!json) throw new Error('O arquivo não contém project.json. Nada foi alterado.')
   const text = strFromU8(json)
   let raw: { format?: unknown; schemaVersion?: unknown; archive?: { photos?: { fileId: string; path: string; thumbnail?: string }[] } }
   try { raw = JSON.parse(text) } catch { throw new Error('project.json ilegível. Nada foi alterado.') }
-  if (raw.format !== ARCHIVE_FORMAT) throw new Error('O arquivo não é um projeto exportado pelo Campo. Nada foi alterado.')
-  if (typeof raw.schemaVersion !== 'number' || raw.schemaVersion > SCHEMA_VERSION) throw new Error(`Este projeto foi gerado por uma versão mais nova do Campo (versão de dados ${String(raw.schemaVersion)}). Atualize o app antes de importar. Nada foi alterado.`)
+  if (raw.format !== ARCHIVE_FORMAT) throw new Error('O arquivo não é um projeto exportado pelo LAC. Nada foi alterado.')
+  if (typeof raw.schemaVersion !== 'number' || raw.schemaVersion > SCHEMA_VERSION) throw new Error(`Este projeto foi gerado por uma versão mais nova do LAC (versão de dados ${String(raw.schemaVersion)}). Atualize o app antes de importar. Nada foi alterado.`)
   const snapshot = parseBackup(text)
   if (snapshot.data.projects.length !== 1) throw new Error('O arquivo deve conter exatamente um projeto. Nada foi alterado.')
   const project = snapshot.data.projects[0]

@@ -1,10 +1,10 @@
-// Service worker do Campo: permite abrir a aplicação sem conexão (uso em campo).
+// Service worker do LAC: permite abrir a aplicação sem conexão (uso em campo).
 // Os dados dos levantamentos ficam no IndexedDB; aqui só são guardados os arquivos da aplicação.
-const CACHE = 'campo-app-v1'
+const CACHE = 'campo-app-v2-lac'
 const scope = new URL(self.registration.scope)
 const isIndex = url => url.pathname === scope.pathname || url.pathname === `${scope.pathname}index.html`
 const isAsset = url => url.pathname.startsWith(`${scope.pathname}assets/`)
-const isStatic = url => /\/(favicon\.svg|manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon\.png)$/.test(url.pathname)
+const isStatic = url => /\/(lac-[\w-]+\.svg|favicon\.svg|manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon\.png)$/.test(url.pathname)
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil((async () => {
@@ -26,7 +26,7 @@ async function networkFirst(request) {
   } catch {
     const cached = await caches.match(scope.href)
     if (cached) return cached
-    return new Response('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Campo</title><body style="font-family:system-ui;padding:32px;color:#233e36"><h1>Sem conexão</h1><p>Abra o Campo uma vez com internet para usá-lo depois sem conexão.</p><button onclick="location.reload()">Tentar novamente</button></body></html>', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    return new Response('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAC</title><body style="font-family:system-ui;padding:32px;color:#16202B"><h1>Sem conexão</h1><p>Abra o LAC uma vez com internet para usá-lo depois sem conexão.</p><button onclick="location.reload()">Tentar novamente</button></body></html>', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
   }
 }
 async function cacheFirst(request) {

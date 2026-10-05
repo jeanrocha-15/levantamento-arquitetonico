@@ -26,9 +26,9 @@ export function createBackup(data: WorkspaceData, projectIds?: string[]): { file
 
 export function parseBackup(text: string): StoredWorkspace {
   try { return decodeSnapshot(text) } catch (error) {
-    if (error instanceof SyntaxError) throw new Error('O arquivo não é um backup válido do Campo (JSON ilegível). Nada foi alterado.')
-    if (error instanceof Error && error.message.includes('versão')) throw new Error('Este backup foi gerado por uma versão incompatível do Campo. Nada foi alterado.')
-    throw new Error('O arquivo não é um backup válido do Campo ou está incompleto. Nada foi alterado.')
+    if (error instanceof SyntaxError) throw new Error('O arquivo não é um backup válido do LAC (JSON ilegível). Nada foi alterado.')
+    if (error instanceof Error && error.message.includes('versão')) throw new Error('Este backup foi gerado por uma versão incompatível do LAC. Nada foi alterado.')
+    throw new Error('O arquivo não é um backup válido do LAC ou está incompleto. Nada foi alterado.')
   }
 }
 

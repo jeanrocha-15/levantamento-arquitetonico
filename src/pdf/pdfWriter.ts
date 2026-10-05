@@ -86,7 +86,7 @@ export function buildPdf(input: PdfPage | PdfPage[], title: string): Uint8Array 
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(page.widthMm * PT_PER_MM)} ${n(page.heightMm * PT_PER_MM)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6+index*2} 0 R >>`,
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
   )})
-  objects.push(`<< /Title (${encode(title).map(b => b === 0x28 || b === 0x29 || b === 0x5c ? `\\${String.fromCharCode(b)}` : b > 126 ? `\\${b.toString(8)}` : String.fromCharCode(b)).join('')}) /Producer (Campo - levantamento arquitetonico) >>`)
+  objects.push(`<< /Title (${encode(title).map(b => b === 0x28 || b === 0x29 || b === 0x5c ? `\\${String.fromCharCode(b)}` : b > 126 ? `\\${b.toString(8)}` : String.fromCharCode(b)).join('')}) /Producer (LAC - levantamento arquitetonico) >>`)
   let out = '%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n'
   const offsets: number[] = []
   objects.forEach((body,index)=>{offsets.push(out.length);out+=`${index+1} 0 obj\n${body}\nendobj\n`})
