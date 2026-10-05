@@ -79,7 +79,7 @@ describe('Etapa 20 — conclusão, checklist e fotos independentes',()=>{
     const {room,p}=fixture();room.technicalChecks!.tanks={status:'ok',note:'Tanque externo'};p.generalChecks!.client={status:'ok',value:'Cliente X'};
     room.photos=[{id:'photo',fileId:'blob',originalFileName:'tanque.jpg',createdAt:'2026-10-05',roomId:room.id,linkedEntityType:'technical_item',linkedEntityId:technicalItemId(room,'tanks'),tags:[],mimeType:'image/jpeg',size:5}];
     const data={projects:[p],projectId:p.id,floorId:p.floors[0].id,roomId:room.id}, snapshot=createSnapshot(data);
-    expect(snapshot.schemaVersion).toBe(5);expect(decodeSnapshot(encodeSnapshot(snapshot)).data).toEqual(data);
+    expect(snapshot.schemaVersion).toBe(SCHEMA_VERSION);expect(decodeSnapshot(encodeSnapshot(snapshot)).data).toEqual(data);
     expect(readSnapshot({...snapshot,schemaVersion:4}).schemaVersion).toBe(SCHEMA_VERSION);
     expect(()=>readSnapshot({...snapshot,data:{...data,projects:[{...p,generalChecks:{client:{status:'invalid'}}} as never]}})).toThrow();
     const cloned=cloneWithNewIds(p).project;const copied=cloned.floors[0].rooms[0];expect(copied.walls.map(w=>w.lengthM)).toEqual(room.walls.map(w=>w.lengthM));expect(copied.technicalChecks).toEqual(room.technicalChecks);

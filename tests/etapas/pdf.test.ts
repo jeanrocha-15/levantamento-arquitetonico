@@ -25,7 +25,10 @@ describe('Etapa 17 — PDF em escala física real', () => {
     const { room, project } = proj()
     expect(mmOnPaper(0.15, 50)).toBeCloseTo(3, 12)
     const { page } = drawRoomSheet({ project, room, option: { sheet: 'A3', orientation: 'portrait', scale: 50 } })
-    expect(page.ops.some(op => op.startsWith(`${(Math.round(3 * PT_PER_MM * 1000) / 1000)} w`))).toBe(true)
+    const faces=[...page.ops.join(' ').matchAll(/([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S/g)]
+    // A espessura é a separação entre faces vazias, não a largura de um traço cheio.
+    expect(Math.abs(+faces[0][2]- +faces[1][2])).toBeCloseTo(3*PT_PER_MM,2)
+    expect(Math.abs(+faces[0][4]- +faces[1][4])).toBeCloseTo(3*PT_PER_MM,2)
   })
   it('folhas A3/A2 em retrato e paisagem, com as medidas reais', () => {
     expect(paperSize({ sheet: 'A3', orientation: 'portrait' })).toEqual({ width: 297, height: 420 })

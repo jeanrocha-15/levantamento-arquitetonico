@@ -1,3 +1,4 @@
+import { buildWallFaces } from '../wallFaces'
 import type { Floor, Project, Room } from '../models'
 import { buildRoomGeometry } from '../roomGeometry'
 import { buildObjectPlacements, objectDimensionsLabel } from '../roomObjects'
@@ -15,8 +16,10 @@ const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 export function roomExtent(room: Room) {
   const survey = buildRoomGeometry(room)
   const points: Pt[] = survey.perimeter.segments.flatMap(segment => [segment.start, segment.end])
+  for(const faces of buildWallFaces(survey.perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room.wallMeasurementFace ?? 'internal'}))).values()) faces.forEach(face=>points.push(face.start,face.end))
+  for(const faces of buildWallFaces(survey.internalWalls.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room.wallMeasurementFace ?? 'internal'}))).values()) faces.forEach(face=>points.push(face.start,face.end))
   survey.internalWalls.placements.forEach(item => points.push(item.start, item.end))
-  buildObjectPlacements(room.objects ?? []).forEach(item => points.push(...item.bounds))
+  buildObjectPlacements(room.objects ?? [], [...survey.perimeter.segments,...survey.internalWalls.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))]).forEach(item => points.push(...item.bounds))
   if (!points.length) return { survey, minX: 0, minY: 0, width: 0, height: 0 }
   const pad = Math.max(0, ...room.walls.map(wall => wall.thickness != null && Number.isFinite(wall.thickness) && wall.thickness > 0 ? wall.thickness : 0))
   const minX = Math.min(...points.map(p => p.x)) - pad, maxX = Math.max(...points.map(p => p.x)) + pad
@@ -42,22 +45,15 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date() 
   const vertices = perimeter.segments.map(segment => toPaper(segment.start))
   const center = vertices.length ? { x: vertices.reduce((t, p) => t + p.x, 0) / vertices.length, y: vertices.reduce((t, p) => t + p.y, 0) / vertices.length } : origin
   const thin = { width: .18 }, medium = { width: .35 }
+  const faces=buildWallFaces(perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])))
   // Paredes: trechos cheios (sem as aberturas). A espessura vai para fora da linha medida (face interna).
   for (const segment of perimeter.segments) {
-    const layout = openings.wallLayouts.find(item => item.wallId === segment.wall.id)
-    const ranges = layout?.solidRanges ?? [{ start: segment.start, end: segment.end }]
+    const ranges = faces.get(segment.wall.id) ?? []
     const a = toPaper(segment.start), b = toPaper(segment.end)
     const inside = insideNormal(a, b, center)
     const thickness = segment.wall.thickness != null && Number.isFinite(segment.wall.thickness) && segment.wall.thickness > 0 ? mmOnPaper(segment.wall.thickness, option.scale) : 0
     for (const range of ranges) {
       const from = toPaper(range.start), to = toPaper(range.end)
-      if (thickness > 0) {
-        // Nos encontros, o traço avança uma espessura para fechar o canto externo (nas aberturas, não).
-        const u = { x: (b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1), y: (b.y - a.y) / (Math.hypot(b.x - a.x, b.y - a.y) || 1) }
-        const near = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) < 1e-6
-        const s0 = near(from, a) ? thickness : 0, s1 = near(to, b) ? thickness : 0
-        page.line({ x: from.x - u.x * s0 - inside.x * thickness / 2, y: from.y - u.y * s0 - inside.y * thickness / 2 }, { x: to.x + u.x * s1 - inside.x * thickness / 2, y: to.y + u.y * s1 - inside.y * thickness / 2 }, { width: thickness, gray: .25 })
-      }
       page.line(from, to, { width: .5, dash: segment.measured ? undefined : [2, 1.5] })
     }
     // Comprimento da parede, do lado de fora.
@@ -98,15 +94,15 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date() 
     const lines = [`${opening.label} ${formatMeasurement(opening.widthM, unit, false)} × ${f(opening.heightM)}`, ...(opening.type === 'window' ? [`P=${f(opening.sillHeightM)}`] : []), `${f(opening.offsetM)} de ${placement.reference.label}`]
     lines.forEach((line, index) => page.text({ x: textAt.x, y: textAt.y + index * 3 }, line, index === 0 ? 2.4 : 2.1, { align: 'center', font: index === 0 ? 'bold' : 'regular', gray: index === 0 ? 0 : .3 }))
   }
+  const piFaces=buildWallFaces(internalWalls.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])))
   // Paredes internas (PI).
   for (const item of internalWalls.placements) {
     const a = toPaper(item.start), b = toPaper(item.end)
-    const width = item.internalWall.thicknessM != null && item.internalWall.thicknessM > 0 ? mmOnPaper(item.internalWall.thicknessM, option.scale) : .5
-    page.line(a, b, { width, gray: width > .5 ? .25 : 0 })
+    for(const face of piFaces.get(item.internalWall.id) ?? []) page.line(toPaper(face.start),toPaper(face.end),{width:.35})
     page.text({ x: (a.x + b.x) / 2 + 2, y: (a.y + b.y) / 2 - 1.5 }, `${item.internalWall.label} ${f(item.internalWall.lengthM)}`, 2.3)
   }
   // Objetos.
-  for (const item of buildObjectPlacements(room.objects ?? [])) {
+  for (const item of buildObjectPlacements(room.objects ?? [], [...perimeter.segments,...internalWalls.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))])) {
     const bounds = item.bounds.map(toPaper), c = toPaper(item.center)
     if (item.object.shape === 'circle') page.circle(c, mmOnPaper(item.widthM, option.scale) / 2, { width: .2, gray: .3 })
     else if (item.object.shape === 'line') page.line(bounds[0], bounds[bounds.length - 1], { width: .3, gray: .3 })

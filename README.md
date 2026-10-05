@@ -2,6 +2,18 @@
 
 Estrutura inicial em React, TypeScript e Vite. Interface em português, com projetos, pavimentos, ambientes e subambientes independentes.
 
+## Etapa 21 — faces, estruturas e telhados
+
+Paredes com espessura usam duas faces vazias, calculadas por offset em coordenadas físicas, com encontros por interseção e recortes de portas, janelas e vãos. A referência padrão das medidas é a face interna; o seletor no Perímetro permite usar a externa, sem converter comprimentos ou ângulos. Sem espessura, o traço continua simples. A mesma geometria central (`wallFaces.ts`) atende SVG e PDF. PIs também possuem faces selecionáveis e podem receber aberturas referidas ao início ou final da PI.
+
+A categoria Estrutural cadastra pilares PIL-001 e vigas VIG-001, com contadores preservados após exclusões, UUIDs independentes, forma/perfil, material e dimensões específicas. Perfis personalizados usam descrição e envelope retangular simplificado. Forma, dimensões e material geram três verificações por elemento, substituindo a contagem genérica correspondente para evitar duplicação. Objetos de todas as categorias podem ser anexados a paredes externas/PI, com distância desde o início, afastamento assinado da referência e opção de acompanhar o ângulo. Dimensões não mudam; ao desanexar, a posição e rotação exibidas são mantidas.
+
+TELHADOS é um módulo próprio do projeto, com vínculo opcional ao pavimento e sequência TEL-001. Cada telhado possui de uma a quatro águas com UUIDs próprios. Alturas, pontos alto/baixo, projeção e direção são informados por água; desnível, porcentagem e ângulo são derivados, sem sobrescrever os registros. A vista superior e os perfis são esquemas de levantamento, sem telhas ou estrutura detalhada. Setas tracejadas indicam sentidos ilustrativos ainda não confirmados. No mobile, a vista superior permanece como mini croqui expansível.
+
+As cinco verificações do telhado entram na conclusão do projeto e aparecem em Pendências, com navegação para o módulo. Fotos opcionais de estruturas e telhados nunca entram na porcentagem. Originais e miniaturas continuam no IndexedDB; fotos de telhados participam da pesquisa global e dos arquivos de projeto existentes. Excluir um telhado preserva as imagens sem vínculo. A remoção de um pavimento desvincula seus telhados, preservando-os no projeto.
+
+Schema 6 aceita versões anteriores sem alterar medidas ou IDs; o servidor opcional aceita a mesma versão, sem ativar banco. Testes focados: `npx vitest run tests/etapas/structural21.test.tsx tests/etapas/checklist20.test.tsx`. Nenhuma revisão geral foi realizada nesta etapa.
+
 ## Etapa 20 — checklist e completude
 
 O checklist possui grupos recolhíveis de Dados gerais, Medições, Elétrica/Gás e Produtos perigosos. Status Pendente não conclui; OK exige a conferência e a validade das medidas cadastradas; N/A dispensa as exigências automáticas do item. As categorias técnicas usam as medidas existentes na mesma obrigação, sem duplicação. Vigas, pilares, equipamentos e outros elementos podem ser classificados no cadastro de objetos e abertos pelo checklist. Dados gerais pertencem ao projeto e contam uma única vez em seu indicador agregado.

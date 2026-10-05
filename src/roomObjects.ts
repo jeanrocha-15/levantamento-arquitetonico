@@ -1,10 +1,13 @@
+import { buildPerimeter } from './geometry'
+import { buildInternalWallLayout } from './internalWalls'
+import { structuralVerification } from './structural'
 import type { Room, RoomObject, RoomObjectCategory, RoomObjectShape } from './models'
-import type { buildPerimeter, Point } from './geometry'
+import type { Point } from './geometry'
 import { generateId } from './domain'
 import { formatMeasurement } from './units'
 import type { MeasurementUnit } from './units'
 
-export const objectCategoryNames: Record<RoomObjectCategory, string> = { furniture: 'Móvel', equipment: 'Equipamento', object: 'Objeto', other: 'Outro' }
+export const objectCategoryNames: Record<RoomObjectCategory, string> = { furniture: 'Móvel', equipment: 'Equipamento', object: 'Objeto', other: 'Outro', structural: 'Estrutural' }
 export const objectShapeNames: Record<RoomObjectShape, string> = { rectangle: 'Retângulo', circle: 'Círculo', line: 'Linha/segmento' }
 export function nextObjectSequence(room: Room): number {
   return Math.max(room.objectCounter ?? 0, ...(room.objects ?? []).map(object => Number(/^OBJ-(\d+)$/.exec(object.displayId)?.[1] ?? 0))) + 1
@@ -17,7 +20,7 @@ export function removeRoomObject(room: Room, objectId: string): Room {
 }
 export function migrateRoomObjects(room: Room): Room {
   const objects = room.objects ?? []
-  return { ...room, objects, objectCounter: nextObjectSequence({ ...room, objects }) - 1, subrooms: room.subrooms.map(migrateRoomObjects) }
+  return { ...room, objects, structuralCounters:{column:Math.max(room.structuralCounters?.column ?? 0,...objects.map(o=>Number(/^PIL-(\d+)$/.exec(o.displayId)?.[1] ?? 0))),beam:Math.max(room.structuralCounters?.beam ?? 0,...objects.map(o=>Number(/^VIG-(\d+)$/.exec(o.displayId)?.[1] ?? 0)))}, objectCounter: nextObjectSequence({ ...room, objects }) - 1, subrooms: room.subrooms.map(migrateRoomObjects) }
 }
 const positive = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0
 export function objectProblems(object: RoomObject): string[] {
@@ -26,9 +29,11 @@ export function objectProblems(object: RoomObject): string[] {
   if (object.position.xM == null || object.position.yM == null || ![object.position.xM, object.position.yM].every(Number.isFinite)) errors.push('Informe as duas coordenadas do centro.')
   if (object.rotationDegrees == null || !Number.isFinite(object.rotationDegrees)) errors.push('Informe uma rotação válida.')
   const dimensions = object.dimensions
-  if (object.shape === 'rectangle' && (!positive(dimensions.widthM) || !positive(dimensions.depthM))) errors.push('Informe largura e profundidade positivas.')
-  if (object.shape === 'circle' && !positive(dimensions.diameterM)) errors.push('Informe um diâmetro positivo.')
-  if (object.shape === 'line' && !positive(dimensions.lengthM)) errors.push('Informe um comprimento positivo.')
+  if (object.category!=='structural' && object.shape === 'rectangle' && (!positive(dimensions.widthM) || !positive(dimensions.depthM))) errors.push('Informe largura e profundidade positivas.')
+  if (object.category!=='structural' && object.shape === 'circle' && !positive(dimensions.diameterM)) errors.push('Informe um diâmetro positivo.')
+  if (object.category!=='structural' && object.shape === 'line' && !positive(dimensions.lengthM)) errors.push('Informe um comprimento positivo.')
+  if(object.category==='structural') structuralVerification(object).filter(x=>!x.completed).forEach(x=>errors.push(`${x.label} estrutural não informado ou inválido.`))
+  if(object.attachedWallId && (object.alongWallM == null || !Number.isFinite(object.alongWallM) || object.offset == null || !Number.isFinite(object.offset))) errors.push('Informe posição ao longo da parede e afastamento.')
   return errors
 }
 export function objectDimensionsLabel(object: RoomObject, unit: MeasurementUnit): string {
@@ -37,13 +42,25 @@ export function objectDimensionsLabel(object: RoomObject, unit: MeasurementUnit)
     : object.shape === 'circle' ? `Ø ${format(object.dimensions.diameterM)}` : format(object.dimensions.lengthM)
 }
 export interface ObjectPlacement { object: RoomObject; center: Point; widthM: number; heightM: number; bounds: Point[] }
-export function buildObjectPlacements(objects: RoomObject[]): ObjectPlacement[] {
-  return objects.flatMap(object => {
+export interface AttachmentSegment { wall: {id:string}; start:Point; end:Point }
+export function resolveObjectAttachment(object:RoomObject,segments:AttachmentSegment[]):RoomObject {
+  const segment=segments.find(s=>s.wall.id===object.attachedWallId)
+  if(!segment || object.alongWallM==null || object.offset==null || !Number.isFinite(object.alongWallM) || !Number.isFinite(object.offset)) return object
+  const length=Math.hypot(segment.end.x-segment.start.x,segment.end.y-segment.start.y);if(length<1e-10)return object
+  const dx=(segment.end.x-segment.start.x)/length,dy=(segment.end.y-segment.start.y)/length
+  return {...object,position:{xM:segment.start.x+dx*object.alongWallM-dy*object.offset,yM:segment.start.y+dy*object.alongWallM+dx*object.offset},rotationDegrees:object.followWallAngle?Math.atan2(dy,dx)*180/Math.PI:object.rotationDegrees}
+}
+export function buildObjectPlacements(objects: RoomObject[],segments:AttachmentSegment[]=[]): ObjectPlacement[] {
+  return objects.flatMap(original => {
+    let object=resolveObjectAttachment(original,segments)
+    if(object.category==='structural'){const d=object.dimensions;object={...object,shape:object.structuralKind==='column' && object.profile==='circular'?'circle':'rectangle',dimensions:{...d,widthM:object.structuralKind==='beam'?d.lengthM:d.widthM,depthM:object.structuralKind==='beam'?d.widthM:object.profile==='square'?d.widthM:d.depthM}}}
+
     // Missing names do not prevent visualization; missing geometry does.
-    if (objectProblems(object).some(message => message !== 'Informe o nome do objeto.')) return []
+    if (objectProblems(object).some(message => !['Informe o nome do objeto.','Forma/perfil estrutural não informado ou inválido.','Material estrutural não informado ou inválido.','Dimensões estrutural não informado ou inválido.'].includes(message))) return []
     const center = { x: object.position.xM!, y: object.position.yM! }
     const widthM = object.shape === 'rectangle' ? object.dimensions.widthM! : object.shape === 'circle' ? object.dimensions.diameterM! : object.dimensions.lengthM!
     const heightM = object.shape === 'rectangle' ? object.dimensions.depthM! : object.shape === 'circle' ? object.dimensions.diameterM! : 0
+    if(!positive(widthM) || (object.shape!=='line' && !positive(heightM))) return []
     const angle = object.rotationDegrees! * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle)
     const bounds = object.shape === 'circle'
       ? [{ x: center.x - widthM / 2, y: center.y - widthM / 2 }, { x: center.x + widthM / 2, y: center.y + widthM / 2 }]
@@ -54,7 +71,7 @@ export function buildObjectPlacements(objects: RoomObject[]): ObjectPlacement[] 
 }
 // Extend only the display projection; positions and dimensions are never rewritten.
 export function fitObjectsSketch(geometry: ReturnType<typeof buildPerimeter>, placements: ObjectPlacement[], extraPoints: Point[] = []): ReturnType<typeof buildPerimeter> {
-  const objectPoints = placements.flatMap(placement => placement.bounds)
+  const objectPoints = [...placements.flatMap(placement => placement.bounds),...extraPoints]
   if (!objectPoints.length || objectPoints.every(point => { const screen = geometry.project(point); return screen.x >= 80 && screen.x <= 360 && screen.y >= 85 && screen.y <= 265 })) return geometry
   const points = [{ x: 0, y: 0 }, ...geometry.segments.flatMap(segment => [segment.start, segment.end]), ...extraPoints, ...objectPoints]
   const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x))
@@ -62,4 +79,9 @@ export function fitObjectsSketch(geometry: ReturnType<typeof buildPerimeter>, pl
   if (![maxX - minX, maxY - minY].every(Number.isFinite)) return geometry
   const scale = Math.min(280 / Math.max(maxX - minX, .01), 180 / Math.max(maxY - minY, .01))
   return { ...geometry, scale, project: point => ({ x: 220 + (point.x - (minX / 2 + maxX / 2)) * scale, y: 175 + (point.y - (minY / 2 + maxY / 2)) * scale }) }
+}
+
+export function attachmentSegments(room:Room) {
+  const perimeter=buildPerimeter(room.walls,room.corners,room.diagonals)
+  return [...perimeter.segments,...buildInternalWallLayout(perimeter,room.walls,room.corners,room.internalWalls).placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))]
 }

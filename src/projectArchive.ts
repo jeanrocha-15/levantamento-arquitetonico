@@ -3,7 +3,7 @@ import type { Photo, Project } from './models'
 import type { StoredWorkspace, WorkspaceData } from './storage'
 import { SCHEMA_VERSION, createSnapshot, encodeSnapshot, restoreNavigation } from './storage'
 import { parseBackup } from './exporting'
-import { projectRooms } from './relationships'
+import { allProjectPhotos } from './photos'
 import { cloneWithNewIds } from './projectClone'
 
 // Arquivo de projeto (.levantamento = ZIP): project.json (mesmo envelope/versão do armazenamento local,
@@ -16,7 +16,7 @@ export interface PhotoFiles { original: Blob; thumbnail?: Blob }
 export type ReadPhoto = (fileId: string) => Promise<PhotoFiles | undefined>
 export interface ArchiveContents { snapshot: StoredWorkspace; project: Project; files: Map<string, PhotoFiles>; missingFiles: string[] }
 
-const projectPhotos = (project: Project): Photo[] => projectRooms(project).flatMap(room => room.photos ?? [])
+const projectPhotos = (project: Project): Photo[] => allProjectPhotos(project)
 const extension = (photo: Photo) => (/\.([a-z0-9]{1,5})$/i.exec(photo.originalFileName)?.[1] ?? photo.mimeType.split('/')[1] ?? 'bin').toLowerCase()
 const slug = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'levantamento'
 

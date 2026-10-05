@@ -30,25 +30,32 @@ export interface RoomRelationship {
   targetRoomId: string; targetElementId?: string; note?: string
 }
 export interface PendingItem { id: string; description: string; resolved: boolean; kind?: 'manual' | 'technical'; reason?: 'check_on_site' | 'doubtful'; elementId?: string; field?: string; note?: string; issueKey?: string }
-export type RoomObjectCategory = 'furniture' | 'equipment' | 'object' | 'other'
+export type RoomObjectCategory = 'furniture' | 'equipment' | 'object' | 'other' | 'structural'
 export type RoomObjectShape = 'rectangle' | 'circle' | 'line'
-export interface RoomObjectDimensions { widthM?: number | null; depthM?: number | null; diameterM?: number | null; lengthM?: number | null }
+export type StructuralProfile = 'square' | 'rectangular' | 'circular' | 'I' | 'H' | 'T' | 'L' | 'U/C' | 'tubular' | 'custom'
+export type StructuralMaterial = 'cast_concrete' | 'precast_concrete' | 'steel' | 'wood' | 'structural_masonry' | 'other'
+export interface RoomObjectDimensions { widthM?: number | null; depthM?: number | null; diameterM?: number | null; lengthM?: number | null; heightM?: number | null; webM?: number | null; flangeM?: number | null }
 export interface RoomObject {
   id: string; displayId: string; roomId: string; name: string;
   category: RoomObjectCategory; shape: RoomObjectShape; dimensions: RoomObjectDimensions;
   // Centro do objeto no sistema local: origem no início da primeira parede.
-  position: { xM: number | null; yM: number | null }; rotationDegrees: number | null; technicalItemKey?: string; note?: string
+  position: { xM: number | null; yM: number | null }; rotationDegrees: number | null; technicalItemKey?: string; note?: string;
+  structuralKind?: 'column' | 'beam'; profile?: StructuralProfile; customProfile?: string; material?: StructuralMaterial; customMaterial?: string;
+  attachedWallId?: string; followWallAngle?: boolean; offset?: number | null; alongWallM?: number | null
 }
 export type CheckStatus = 'pending' | 'ok' | 'na'
 export interface TechnicalCheck { status: CheckStatus; photoPrompted?: boolean; value?: string; note?: string }
-export type PhotoEntityType = 'technical_item' | 'room' | 'wall' | 'door' | 'window' | 'gap' | 'internal_wall' | 'room_object'
+export type PhotoEntityType = 'technical_item' | 'room' | 'wall' | 'door' | 'window' | 'gap' | 'internal_wall' | 'room_object' | 'roof'
+// Fotos de telhado usam roofId, roomId vazio e coleção própria do projeto.
 export interface Photo {
   id: string; originalFileName: string; createdAt: string; roomId: string;
   linkedEntityType?: PhotoEntityType; linkedEntityId?: string;
-  tags: string[]; note?: string; fileId: string; mimeType: string; size: number
+  roofId?: string; tags: string[]; note?: string; fileId: string; mimeType: string; size: number
 }
-export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
+export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; structuralCounters?: { column: number; beam: number }; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; wallMeasurementFace?: 'internal' | 'external'; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
 export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
-export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck> }
+export interface RoofWater { id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
+export interface Roof { id: string; displayId: string; projectId: string; floorId?: string; name: string; shape: 'rectangular' | 'square'; lengthM: number | null; widthM: number | null; waterCount: 1 | 2 | 3 | 4; waters: RoofWater[]; note?: string; photos?: Photo[]; checks?: Record<string, TechnicalCheck> }
+export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[] }

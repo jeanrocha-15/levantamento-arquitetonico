@@ -1,3 +1,4 @@
+import { columnProfilePoints } from './structural'
 import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
 import { useSketchLabelScale } from './sketchDrag'
@@ -15,7 +16,7 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
   const [live, setLive] = useState<{ id: string; xM: number; yM: number }>()
   const suppress = useRef(false)
   const begin = (event: PointerEvent<SVGGElement>, object: ObjectPlacement['object']) => {
-    if (!onMove || object.position.xM == null || object.position.yM == null) return
+    if (object.attachedWallId || !onMove || object.position.xM == null || object.position.yM == null) return
     if (event.pointerType === 'mouse' ? event.button !== 0 : selectedId !== object.id) return
     const ctm = event.currentTarget.ownerSVGElement?.getScreenCTM()
     event.stopPropagation()
@@ -40,6 +41,7 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
     const moving = live?.id === object.id
     const point = geometry.project(moving ? { x: center.x + live.xM - object.position.xM!, y: center.y + live.yM - object.position.yM! } : center), width = widthM * geometry.scale, height = heightM * geometry.scale
     if (![point.x, point.y, width, height].every(Number.isFinite)) return null
+    const profilePoints=object.structuralKind==='column'?columnProfilePoints(object.profile,width,height,(object.dimensions.webM ?? 0)*geometry.scale,(object.dimensions.flangeM ?? 0)*geometry.scale):undefined
     const label = objectDimensionsLabel(object, unit)
     const codeFits = width >= (object.displayId.length * 6 + 6) * labelScale && (object.shape === 'line' || height >= 16 * labelScale)
     const dimensionsFit = codeFits && width >= (label.length * 5 + 8) * labelScale && height >= 36 * labelScale
@@ -48,7 +50,9 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
       <title>{`${object.displayId} — ${object.name} · ${label} · ${object.rotationDegrees}°${object.note ? ` · ${object.note}` : ''}`}</title>
       <g transform={`translate(${point.x} ${point.y}) rotate(${object.rotationDegrees ?? 0})`}>
         {object.shape !== 'line' && <rect x={-Math.max(width, 16) / 2} y={-Math.max(height, 16) / 2} width={Math.max(width, 16)} height={Math.max(height, 16)} fill="transparent"/>}
-        {object.shape === 'rectangle' && <rect className="object-shape" x={-width / 2} y={-height / 2} width={width} height={height} rx="2"/>}
+        {object.shape === 'rectangle' && !profilePoints && <rect className="object-shape" x={-width / 2} y={-height / 2} width={width} height={height} rx="2"/>}
+        {profilePoints && <polygon className="object-shape" points={profilePoints.map(p=>p.join(',')).join(' ')}/>}
+        {object.structuralKind==='beam' && <text x={0} y={height/2+12} textAnchor="middle" className="object-label">{object.profile}</text>}
         {object.shape === 'circle' && <circle className="object-shape" r={width / 2}/>}
         {object.shape === 'line' && <><line className="object-hit" x1={-width / 2} x2={width / 2} y1="0" y2="0"/><line className="object-shape" x1={-width / 2} x2={width / 2} y1="0" y2="0"/></>}
       </g>

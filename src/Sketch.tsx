@@ -1,3 +1,4 @@
+import { buildWallFaces } from './wallFaces'
 import RoomObjectSketch from './RoomObjectSketch'
 import { buildObjectPlacements, fitObjectsSketch } from './roomObjects'
 import { useMeasurements } from './Measurement'
@@ -38,12 +39,14 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
   const perimeter = useMemo(() => survey?.perimeter ?? buildPerimeter(room?.walls ?? [], room?.corners ?? [], room?.diagonals ?? []), [survey, room?.walls, room?.corners, room?.diagonals])
   const internalWallLayout = useMemo(() => survey?.internalWalls ?? buildInternalWallLayout(perimeter, room?.walls ?? [], room?.corners ?? [], room?.internalWalls ?? []), [survey, perimeter, room?.walls, room?.corners, room?.internalWalls])
   const internalGeometry = useMemo(() => fitInternalWallsSketch(perimeter, internalWallLayout.placements), [perimeter, internalWallLayout])
-  const objectPlacements = useMemo(() => buildObjectPlacements(room?.objects ?? []), [room?.objects])
-  const geometry = useMemo(() => fitObjectsSketch(internalGeometry, objectPlacements, internalWallLayout.placements.flatMap(placement => [placement.start, placement.end])), [internalGeometry, objectPlacements, internalWallLayout])
+  const objectPlacements = useMemo(() => buildObjectPlacements(room?.objects ?? [], [...perimeter.segments,...internalWallLayout.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))]), [room?.objects, perimeter, internalWallLayout])
+  const envelope=useMemo(()=>{const openings=survey?.openings ?? buildOpeningLayout(perimeter,room?.walls ?? [],room?.corners ?? [],room?.openings ?? [],internalWallLayout.placements);return [...buildWallFaces(perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room?.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges]))).values(),...buildWallFaces(internalWallLayout.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room?.wallMeasurementFace ?? 'internal'}))).values()].flat().flatMap(f=>[f.start,f.end])},[perimeter,survey,room?.walls,room?.corners,room?.openings,room?.wallMeasurementFace,internalWallLayout])
+  const geometry = useMemo(() => fitObjectsSketch(internalGeometry, objectPlacements, [...internalWallLayout.placements.flatMap(placement => [placement.start, placement.end]),...envelope]), [internalGeometry, objectPlacements, internalWallLayout,envelope])
   const labelLayout = useMemo(() => getSketchLabelLayout(geometry, unit), [geometry, unit])
   const internalWallLabels = useMemo(() => placeInternalWallLabels(internalWallLayout.placements, geometry.project, labelLayout.boxes, unit), [internalWallLayout, geometry, labelLayout, unit])
-  const openingLayout = useMemo(() => survey?.openings ?? buildOpeningLayout(geometry, room?.walls ?? [], room?.corners ?? [], room?.openings ?? []), [survey, geometry, room?.walls, room?.corners, room?.openings])
+  const openingLayout = useMemo(() => survey?.openings ?? buildOpeningLayout(geometry, room?.walls ?? [], room?.corners ?? [], room?.openings ?? [],internalWallLayout.placements), [survey, geometry, room?.walls, room?.corners, room?.openings,internalWallLayout])
   const openingReservations = useMemo(() => [...labelLayout.boxes, ...internalWallLabels.map(label => label.box)], [labelLayout, internalWallLabels])
+  const wallFaces = useMemo(() => buildWallFaces(geometry.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room?.wallMeasurementFace ?? 'internal'})), new Map(openingLayout.wallLayouts.map(w=>[w.wallId,w.solidRanges]))), [geometry,openingLayout,room?.wallMeasurementFace])
   const selected = selection?.roomId === room?.id ? selection?.wallId : undefined
   const selectedObject = room?.objects?.find(object => object.id === selectedObjectId)
   const selectedWall = room?.walls.find(wall => wall.id === selected)
@@ -52,7 +55,7 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
     <div className={`sketch-paper ${arrange ? 'is-arranging' : ''} ${zoom.zoomed ? 'is-zoomed' : ''} ${moveMode ? 'is-panning' : ''} ${selectedObject && onObjectsChange ? 'object-selected' : ''}`} {...(variant === 'report' || (!expanded && compactLayout()) ? {} : zoom.handlers)}>{variant !== 'report' && <div className="zoom-tools" role="group" aria-label="Zoom do croqui"><button onClick={zoom.zoomIn} aria-label="Aproximar">＋</button><button aria-label="Mover croqui" aria-pressed={moveMode} disabled={!zoom.zoomed} onClick={() => { setMoveMode(value => !value); setArrange(false) }}>✥ Mover</button><button onClick={zoom.zoomOut} disabled={!zoom.zoomed} aria-label="Afastar">－</button>{zoom.zoomed && <button onClick={zoom.reset} aria-label="Ver croqui inteiro">⤢ {Math.round(zoom.zoom * 100)}%</button>}</div>}<DragProvider api={drag.api} labelScale={labelScale}><svg ref={svgRef} style={{ '--sketch-label-scale': labelScale } as CSSProperties} viewBox={variant === 'report' ? '0 0 440 340' : zoom.viewBox} role="group" aria-label={`Croqui de ${room?.name || 'ambiente'}, com ângulos entre paredes`} {...drag.svgHandlers}>
       <defs><pattern id={`${svgId}-grid`} width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" style={{ fill: 'var(--c-d7ddd4)' }}/></pattern><marker id={`${svgId}-arrow`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" style={{ fill: 'var(--c-947239)' }}/></marker></defs>
       <rect width="440" height="340" fill={`url(#${svgId}-grid)`}/>
-      <text x="20" y="24" className="svg-caption">↻ Perímetro em sentido horário · ângulos internos</text>
+      <text x="20" y="24" className="svg-caption">↻ Perímetro horário · face {room?.wallMeasurementFace==='external'?'externa':'interna'} · ângulos internos</text>
       {room && (geometry.segments.length > 0 || room.ceilingHeightM !== null) && (() => {
         const text = `Pé-direito ${room.ceilingHeightM === null ? 'não informado' : Number.isFinite(room.ceilingHeightM) ? format(room.ceilingHeightM) : 'inválido'}`
         const width = text.length * 6.2 + 6
@@ -74,21 +77,20 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
         const { x: dx, y: dy } = segment.direction
         const middle = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
         const label = labelLayout.positions.get(`wall:${segment.wall.id}`)!
-        const wallLayout = openingLayout.wallLayouts.find(layout => layout.wallId === segment.wall.id)!
         const entry = labelLayout.positions.get('entry')!
         const active = selected === segment.wall.id
         const select = () => { if (room) { setSelection({ roomId: room.id, wallId: segment.wall.id }); onSelectObject?.(''); if (onFocusField) { setExpanded(false); onFocusField(segment.wall.id, 'lengthM') } } }
-        return <g key={segment.wall.id} className={`svg-wall ${active ? 'is-selected' : ''}`} role="button" tabIndex={0} aria-pressed={active} aria-label={`Parede ${segment.wall.label}, ${segment.measured ? `${format(segment.wall.lengthM!)}` : 'sem medida válida'}`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select() } }}>
+        return <g key={segment.wall.id} className={`svg-wall ${segment.wall.thickness && segment.wall.thickness>0?'has-thickness':''} ${active ? 'is-selected' : ''}`} role="button" tabIndex={0} aria-pressed={active} aria-label={`Parede ${segment.wall.label}, ${segment.measured ? `${format(segment.wall.lengthM!)}` : 'sem medida válida'}`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select() } }}>
           <title>{`Parede ${segment.wall.label}${segment.wall.thickness != null ? ` · Espessura: ${format(segment.wall.thickness)}` : ''}`}</title><line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="transparent" strokeWidth="22"/>
-          {wallLayout.solidRanges.map((range, rangeIndex) => {
+          {(wallFaces.get(segment.wall.id) ?? []).map((range, rangeIndex) => {
             const from = geometry.project(range.start), to = geometry.project(range.end)
-            return <line key={rangeIndex} style={{ strokeWidth: segment.wall.thickness != null && Number.isFinite(segment.wall.thickness) && segment.wall.thickness > 0 ? Math.max(2, segment.wall.thickness * geometry.scale) : undefined, strokeLinecap: segment.wall.thickness != null && segment.wall.thickness > 0 ? 'butt' : undefined }} className="wall-stroke" x1={from.x} y1={from.y} x2={to.x} y2={to.y} strokeDasharray={segment.measured ? undefined : '6 5'}/>
+            return <line key={rangeIndex} className="wall-stroke" x1={from.x} y1={from.y} x2={to.x} y2={to.y} strokeDasharray={segment.measured ? undefined : '6 5'}/>
           })}
           <Movable id={`wall:${segment.wall.id}`} box={label.box} title={`medida da parede ${segment.wall.label}`}><text className="wall-label" x={label.x} y={label.y - 6} textAnchor="middle"><tspan x={label.x}>{segment.wall.label}</tspan><tspan x={label.x} dy="16" className="wall-length">{segment.wall.lengthM === null ? 'Sem medida' : Number.isFinite(segment.wall.lengthM) ? `${format(segment.wall.lengthM)}` : 'Medida inválida'}</tspan></text></Movable>
           {index === 0 && <g className="entry-indicator"><line x1={middle.x - dy * 48} y1={middle.y + dx * 48} x2={middle.x - dy * 9} y2={middle.y + dx * 9} style={{ stroke: 'var(--c-947239)' }} strokeWidth="2" markerEnd={`url(#${svgId}-arrow)`}/><Movable id="entry" box={entry.box} title="entrada principal"><text x={entry.x} y={entry.y} textAnchor="middle">Entrada principal · {segment.wall.label}</text></Movable></g>}
         </g>
       })}
-      <InternalWallSketch labels={internalWallLabels} geometry={geometry}/>
+      <InternalWallSketch labels={internalWallLabels} geometry={geometry} referenceFace={room?.wallMeasurementFace ?? 'internal'} ranges={new Map(openingLayout.wallLayouts.map(w=>[w.wallId,w.solidRanges]))} onSelect={variant!=='report' && onFocusField ? id=>onFocusField(id,'lengthM') : undefined}/>
       <OpeningSketch layout={openingLayout} geometry={geometry} extraReservations={openingReservations} onSelect={onFocusField && variant !== 'report' ? openingId => { setSelection(undefined); setExpanded(false); onFocusField(openingId, 'widthM') } : undefined}/>
       {geometry.corners.map(corner => {
         const position = geometry.project(corner.position)
@@ -108,7 +110,7 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
         </g>
       })}
       {/* Objetos por cima dos rótulos, para poderem ser selecionados e arrastados mesmo sob um rótulo. */}
-      <RoomObjectSketch onMove={!moveMode && room && onObjectsChange && variant !== 'report' ? (objectId, position) => onObjectsChange((room.objects ?? []).map(item => item.id === objectId ? { ...item, position } : item)) : undefined} placements={objectPlacements} geometry={geometry} selectedId={selectedObjectId} onSelect={objectId => { setSelection(undefined); setExpanded(false); onSelectObject?.(objectId) }}/>
+      <RoomObjectSketch onMove={!moveMode && room && onObjectsChange && variant !== 'report' ? (objectId, position) => onObjectsChange((room.objects ?? []).map(item => item.id === objectId ? { ...item, position, attachedWallId: undefined, followWallAngle: false } : item)) : undefined} placements={objectPlacements} geometry={geometry} selectedId={selectedObjectId} onSelect={objectId => { setSelection(undefined); setExpanded(false); onSelectObject?.(objectId) }}/>
     </svg></DragProvider></div>
     {variant !== 'report' && room && <div className="label-tools">
       <button className={`label-arrange ${arrange ? 'is-on' : ''}`} aria-pressed={arrange} onClick={() => { setArrange(value => !value); setMoveMode(false); drag.setActive(undefined) }}>✥ {arrange ? 'Concluir ajuste' : 'Ajustar rótulos'}</button>

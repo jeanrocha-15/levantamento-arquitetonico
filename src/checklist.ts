@@ -1,3 +1,5 @@
+import { structuralVerification } from './structural'
+import { roofChecklist } from './roofs'
 import { COMPLETION_ITEMS, TECHNICAL_ITEMS, technicalCheck, technicalItemId, itemKeyForEntity } from './technicalChecklist'
 import { objectProblems } from './roomObjects'
 import { formatMeasurement } from './units'
@@ -25,7 +27,7 @@ export function measurementTargets(room: Room): CheckTarget[] {
   room.openings.forEach(opening => add(opening.id, opening.label, [['widthM', 'largura'], ['heightM', 'altura'], ...(opening.type === 'window' ? [['sillHeightM', 'peitoril']] as [string, string][] : []), ['offsetM', 'posição'], ['referenceCornerId', 'canto de referência']]))
   room.diagonals.forEach((diagonal, index) => add(diagonal.id, `Diagonal ${index + 1}`, [['lengthM', 'distância'], ['cornerIds', 'cantos']]))
   room.internalWalls.forEach(wall => add(wall.id, wall.label, [['lengthM', 'comprimento'], ['origin', 'origem'], ['distanceM', 'posição'], ['orientationDegrees', 'orientação'], ['thicknessM', 'espessura'], ['heightM', 'altura']]))
-  ;(room.objects ?? []).forEach(object=>add(object.id, `${object.displayId} — ${object.name}`, [['name','nome'],['position','posição'],['dimensions','dimensões'],['rotationDegrees','rotação']]))
+  ;(room.objects ?? []).forEach(object=>add(object.id, `${object.displayId} — ${object.name}`, [['name','nome'],['position','posição'],['dimensions','dimensões'],['rotationDegrees','rotação'],...(object.category==='structural'?[['shape','forma/perfil'],['material','material']] as [string,string][]:[])]))
   TECHNICAL_ITEMS.forEach(item=>add(technicalItemId(room,item.key),item.label,[[`check:${item.key}`,'verificação técnica']]))
   return targets
 }
@@ -66,8 +68,8 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
     require(positive(opening.heightM), opening.id, 'heightM', `${label} sem altura válida.`)
     if (opening.type === 'window') require(nonnegative(opening.sillHeightM), opening.id, 'sillHeightM', `${label} sem peitoril válido.`)
     if (opening.type === 'door' && !doorOperationKnown(opening)) warning(opening.id, 'doorKind', `${label}: sentido de abertura não informado.`)
-    require(room.walls.some(wall => wall.id === opening.wallId) && nonnegative(opening.offsetM), opening.id, 'offsetM', `${label}: posição não definida ou inválida.`)
-    require(getWallReferences(room.walls, room.corners, opening.wallId).some(corner => corner.id === opening.referenceCornerId), opening.id, 'referenceCornerId', `${label}: canto de referência ausente ou inexistente.`)
+    require([...room.walls,...room.internalWalls].some(wall => wall.id === opening.wallId) && nonnegative(opening.offsetM), opening.id, 'offsetM', `${label}: posição não definida ou inválida.`)
+    require(getWallReferences(room.walls, room.corners, opening.wallId,room.internalWalls).some(corner => corner.id === opening.referenceCornerId), opening.id, 'referenceCornerId', `${label}: canto de referência ausente ou inexistente.`)
   })
   // Existing positional checks also cover overlap and measurements outside their wall.
   derived.openings.checks.forEach(check => {
@@ -99,6 +101,7 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
     check.messages.filter(message => !message.startsWith('Geometria aproximada.') && !message.startsWith('Para este quadrilátero') && !message.startsWith('Os cantos são vizinhos') && !message.startsWith('Dados insuficientes para calcular novos ângulos')).forEach((message, index) => warning(check.id, `diagonal-check-${index}`, `Diagonal: ${message}`))
   })
   ;(room.objects ?? []).forEach(object=> {
+    if(object.category==='structural') {if(!object.attachedWallId && (object.position.xM==null || object.position.yM==null)) require(false,object.id,'position','Posição do elemento estrutural não definida.');return}
     objectProblems(object).forEach((message,index)=>require(false,object.id,`object-check-${index}`,`${object.displayId} — ${object.name}: ${message}`))
     if(!objectProblems(object).length) mark(itemKeyForEntity(room,object.id),true)
   })
@@ -114,12 +117,16 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
     if(!completed && !issues.some(issue=>itemKeyForEntity(room,issue.elementId,issue.field)===item.key)) issues.push({id:`check:${room.id}:${item.key}`,roomId:room.id,elementId:technicalItemId(room,item.key),field:`check:${item.key}`,description:`${item.group} — ${item.label}: ${check.status==='ok'?'dados incompletos ou medidas a conferir':'pendente'}.`,kind:'technical'})
     return {...item,...check,completed,dataValid:valid && valueValid,id:technicalItemId(room,item.key),obligationId:`${item.general?project.id:room.id}:check:${item.key}`}
   })
+  const structuralObjects=(room.objects ?? []).filter(o=>o.category==='structural')
+  const structuralChecks=structuralObjects.flatMap(object=>structuralVerification(object).map(check=>({...check,id:`${object.id}:check:${check.key}`})))
+  structuralObjects.forEach(object=>structuralVerification(object).filter(c=>!c.completed).forEach(c=>issues.push({id:`structural:${object.id}:${c.key}`,roomId:room.id,elementId:object.id,field:c.key,description:`${object.displayId} — ${c.label}: pendente.`,kind:'technical'})))
+  const countedChecks=checks.filter(check=>!structuralObjects.some(o=>o.technicalItemKey===check.key))
   const nameComplete=validity.get('name') ?? false
-  const filled=checks.filter(check=>check.completed).length+Number(nameComplete), total=checks.length+1
+  const filled=countedChecks.filter(check=>check.completed).length+structuralChecks.filter(c=>c.completed).length+Number(nameComplete), total=countedChecks.length+structuralChecks.length+1
   // N/A dispensa as exigências automáticas desta categoria. Marcações manuais
   // e problemas estruturais continuam disponíveis para revisão explícita.
-  const activeIssues=issues.filter(issue=>issue.kind!=='automatic' || technicalCheck(room,project,itemKeyForEntity(room,issue.elementId,issue.field)).status!=='na')
-  return { issues:activeIssues, completeness: Math.round(100 * filled / total), complete: activeIssues.length === 0 && filled===total, checks, checksCompleted:filled-Number(nameComplete), checksTotal:checks.length, photosCount:room.photos?.length ?? 0, obligations:[...checks.map(check=>({id:check.obligationId,completed:check.completed})),{id:`${room.id}:name`,completed:nameComplete}] }
+  const activeIssues=issues.filter(issue=>!(issue.id.startsWith('check:') && structuralObjects.some(o=>`check:${room.id}:${o.technicalItemKey}`===issue.id))).filter(issue=>issue.kind!=='automatic' || technicalCheck(room,project,itemKeyForEntity(room,issue.elementId,issue.field)).status!=='na')
+  return { issues:activeIssues, completeness: Math.round(100 * filled / total), complete: activeIssues.length === 0 && filled===total, checks, checksCompleted:filled-Number(nameComplete), checksTotal:countedChecks.length+structuralChecks.length, photosCount:room.photos?.length ?? 0, obligations:[...countedChecks.map(check=>({id:check.obligationId,completed:check.completed})),...structuralChecks.map(c=>({id:c.id,completed:c.completed})),{id:`${room.id}:name`,completed:nameComplete}] }
 }
 export function projectChecklistSummary(project:Project, results=projectRooms(project).map(room=>roomChecklist(room,project))) {
   const obligations=new Map<string,boolean>(), issues=new Map<string,ChecklistIssue>()
@@ -127,6 +134,7 @@ export function projectChecklistSummary(project:Project, results=projectRooms(pr
     for(const item of result.obligations) obligations.set(item.id,(obligations.get(item.id) ?? true) && item.completed)
     for(const issue of result.issues) issues.set(isGeneralCheckField(issue.field)?`${project.id}:${issue.field}`:issue.id,issue)
   }
+  for(const roof of project.roofs ?? []) {const result=roofChecklist(roof);result.obligations.forEach(c=>obligations.set(c.id,c.completed));result.issues.forEach(issue=>issues.set(issue.id,issue))}
   const checks=[...obligations].filter(([id])=>id.includes(':check:'))
-  return {completeness:obligations.size?Math.round(100*[...obligations.values()].filter(Boolean).length/obligations.size):0,checksTotal:checks.length,checksCompleted:checks.filter(([,completed])=>completed).length,issues:[...issues.values()],photosCount:results.reduce((sum,result)=>sum+result.photosCount,0)}
+  return {completeness:obligations.size?Math.round(100*[...obligations.values()].filter(Boolean).length/obligations.size):0,checksTotal:checks.length,checksCompleted:checks.filter(([,completed])=>completed).length,issues:[...issues.values()],photosCount:results.reduce((sum,result)=>sum+result.photosCount,0)+(project.roofs ?? []).reduce((sum,r)=>sum+(r.photos?.length ?? 0),0)+(project.detachedRoofPhotos?.length ?? 0)}
 }

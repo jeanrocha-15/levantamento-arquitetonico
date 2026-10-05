@@ -1,6 +1,7 @@
+import type { InternalWallPlacement } from './internalWalls'
 import { formatMeasurement } from './units'
 import type { MeasurementUnit } from './units'
-import type { Corner, Opening, OpeningType, Wall } from './models'
+import type { Corner, Opening, OpeningType, Wall, InternalWall } from './models'
 import type { buildPerimeter, Point } from './geometry'
 import { getCorners } from './corners'
 import { geometryTolerance } from './tolerances'
@@ -13,7 +14,9 @@ export const formatCm = (value: number | null) => formatMeasurement(value, 'cm',
 const positive = (value: number | null): value is number => value !== null && Number.isFinite(value) && value > 0
 const nonnegative = (value: number | null): value is number => value !== null && Number.isFinite(value) && value >= 0
 
-export function getWallReferences(walls: Wall[], corners: Corner[], wallId: string) {
+export function getWallReferences(walls: Wall[], corners: Corner[], wallId: string, internalWalls:InternalWall[] = []) {
+  const internal=internalWalls.find(w=>w.id===wallId)
+  if(internal) return [{id:`${internal.id}:start`,label:`${internal.label} início`,endpoint:'start' as const},{id:`${internal.id}:end`,label:`${internal.label} final`,endpoint:'end' as const}]
   const index = walls.findIndex(wall => wall.id === wallId)
   if (index < 0 || walls.length < 2) return []
   const encounters = getCorners(walls, corners)
@@ -31,14 +34,16 @@ export interface OpeningPlacement {
 }
 export interface WallOpeningLayout { wallId: string; solidRanges: { start: Point; end: Point }[]; placements: OpeningPlacement[] }
 
-export function buildOpeningLayout(perimeter: Perimeter, walls: Wall[], corners: Corner[], openings: Opening[]) {
+export function buildOpeningLayout(perimeter: Perimeter, walls: Wall[], corners: Corner[], openings: Opening[], internal:InternalWallPlacement[] = []) {
   const checks: OpeningCheck[] = openings.map(opening => ({ id: opening.id, messages: [], drawable: false }))
-  const wallLayouts: WallOpeningLayout[] = perimeter.segments.map(segment => {
+  const internalWalls=internal.map(p=>p.internalWall)
+  const internalSegments=internal.map(p=>{const length=Math.hypot(p.end.x-p.start.x,p.end.y-p.start.y);return {wall:{id:p.internalWall.id,label:p.internalWall.label,lengthM:p.internalWall.lengthM},start:p.start,end:p.end,direction:{x:(p.end.x-p.start.x)/length,y:(p.end.y-p.start.y)/length},measured:p.internalWall.lengthM!=null && Number.isFinite(p.internalWall.lengthM) && p.internalWall.lengthM>0}})
+  const wallLayouts: WallOpeningLayout[] = [...perimeter.segments,...internalSegments].map(segment => {
     const placements: OpeningPlacement[] = []
     const pointAt = (distance: number): Point => ({ x: segment.start.x + segment.direction.x * distance, y: segment.start.y + segment.direction.y * distance })
     openings.filter(opening => opening.wallId === segment.wall.id).forEach(opening => {
       const check = checks.find(item => item.id === opening.id)!
-      const reference = getWallReferences(walls, corners, opening.wallId).find(item => item.id === opening.referenceCornerId)
+      const reference = getWallReferences(walls, corners, opening.wallId,internalWalls).find(item => item.id === opening.referenceCornerId)
       if (!positive(opening.widthM)) check.messages.push('Informe uma largura positiva para representar a abertura.')
       if (!positive(opening.heightM)) check.messages.push('Altura ainda não informada ou inválida.')
       if (opening.type === 'window' && !nonnegative(opening.sillHeightM)) check.messages.push('Peitoril ainda não informado ou inválido.')
@@ -74,7 +79,7 @@ export function buildOpeningLayout(perimeter: Perimeter, walls: Wall[], corners:
     if (cursor < length) solidRanges.push({ start: pointAt(cursor), end: pointAt(length) })
     return { wallId: segment.wall.id, solidRanges, placements }
   })
-  openings.filter(opening => !walls.some(wall => wall.id === opening.wallId)).forEach(opening => checks.find(check => check.id === opening.id)!.messages.push('A parede de referência não existe no perímetro atual.'))
+  openings.filter(opening => ![...walls,...internalWalls].some(wall => wall.id === opening.wallId)).forEach(opening => checks.find(check => check.id === opening.id)!.messages.push('A parede de referência não existe no perímetro atual.'))
   return { wallLayouts, placements: wallLayouts.flatMap(layout => layout.placements), checks }
 }
 

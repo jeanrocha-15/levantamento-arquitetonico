@@ -1,5 +1,5 @@
 import type { Project } from './models'
-import { projectRooms } from './relationships'
+import { allProjectPhotos } from './photos'
 
 // Sincronização dos ARQUIVOS das fotos (os metadados vão junto com o projeto). Envia as fotos
 // que o servidor ainda não tem e baixa as que faltam neste aparelho. Nunca apaga nada no servidor.
@@ -17,7 +17,7 @@ export interface LocalPhotoFiles {
 export interface PhotoSyncResult { uploaded: string[]; downloaded: string[]; missing: string[]; failed: string[] }
 export function referencedPhotos(projects: Project[]) {
   const files = new Map<string, string>()
-  for (const project of projects) for (const room of projectRooms(project)) for (const photo of room.photos ?? []) if (!files.has(photo.fileId)) files.set(photo.fileId, photo.mimeType || 'image/jpeg')
+  for (const project of projects) for (const photo of allProjectPhotos(project)) if (!files.has(photo.fileId)) files.set(photo.fileId, photo.mimeType || 'image/jpeg')
   return files
 }
 export async function syncPhotoFiles(projects: Project[], transport: PhotoTransport, local: LocalPhotoFiles, onProgress?: (remaining: number) => void): Promise<PhotoSyncResult> {

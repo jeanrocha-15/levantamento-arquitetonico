@@ -8,8 +8,8 @@ const ok = (value: number | null | undefined): value is number => typeof value =
 // da largura e da distância ao canto. Usa as medidas originais; nada é gravado.
 export default function OpeningElevation({ room, opening }: { room: Room; opening: Opening }) {
   const { format } = useMeasurements()
-  const wall = room.walls.find(item => item.id === opening.wallId)
-  const reference = getWallReferences(room.walls, room.corners, opening.wallId).find(item => item.id === opening.referenceCornerId)
+  const wall = [...room.walls,...room.internalWalls].find(item => item.id === opening.wallId)
+  const reference = getWallReferences(room.walls, room.corners, opening.wallId,room.internalWalls).find(item => item.id === opening.referenceCornerId)
   const sill = opening.type === 'window' ? opening.sillHeightM : 0
   if (!wall || !reference || !ok(wall.lengthM) || !(wall.lengthM > 0) || !ok(opening.widthM) || !ok(opening.heightM) || !ok(opening.offsetM) || !ok(sill)) return null
   const length = wall.lengthM, top = sill + opening.heightM

@@ -78,7 +78,8 @@ for (const unit of ['mm', 'cm', 'm', 'mm', 'm']) {
   const svg = renderToStaticMarkup(tree)
   assert.ok(svg.includes(formatMeasurement(3.75, unit)))
   assert.ok(svg.includes(formatMeasurement(.32, unit)))
-  assert.ok(svg.includes('stroke-width:'))
+  assert.ok(svg.includes('has-thickness'), 'A parede com espessura usa duas faces gráficas')
+  assert.ok((svg.match(/class="wall-stroke"/g) ?? []).length > survey.perimeter.segments.length, 'As faces permanecem desenhadas ao trocar unidade')
   const editor = renderToStaticMarkup(React.createElement(UnitContext, { value: unit }, React.createElement(RoomEditor, { section: 'perimeter', room: restoredRoom, survey, project: changed, relatedRooms: [], onChange() {}, onNavigate() {} })))
   // Campos fora de edição mostram o padrão brasileiro (3,75 m · 375 cm · 3750 mm), sem alterar o valor salvo.
   assert.ok(editor.includes(`value="${displayMeasurementInput(3.75, unit)}"`))
