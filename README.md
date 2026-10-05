@@ -31,6 +31,8 @@ npm run preview
 
 ## Rodada de campo: croqui, PDF em escala, arquivo do projeto, tema e conflitos (etapas 12–18)
 
+O croqui permite aproximar e arrastar o fundo com o mouse. Ative **Mover** para arrastar a visualização também sobre paredes, objetos e rótulos sem editá-los; desative para voltar à seleção e edição. No celular, expanda o croqui para usar zoom e movimento. **Tamanho dos rótulos** oferece 50%, 75%, 100%, 125% e 150%, por ambiente, com persistência local. A alteração afeta os textos do croqui e do relatório visual, sem modificar dimensões, posições ou a escala física do PDF. O funcionamento padrão permanece em IndexedDB e cache offline; os módulos de PostgreSQL e sincronização continuam preparados, mas só são ativados quando a aplicação é servida pelo servidor opcional configurado.
+
 - **Encontros:** cantos novos nascem em **Automático**; um único aviso no topo lista os encontros sem dados (com "Presumir 90°"), e cada canto tem atalhos de um toque — **📏 Medir diagonal** (cria a diagonal e leva ao campo) e **✎ Informar ângulo**.
 - **Croqui:** tocar numa parede ou abertura leva ao campo dela; **pinça com dois dedos** aproxima e, com zoom, um dedo arrasta (botões ＋/－ e ⤢ para voltar); **cotas** da distância do canto até a abertura; objetos podem ser **arrastados** (com o mouse, ou com o dedo depois de selecionados), gravando a nova posição ao soltar.
 - **Aberturas:** vista da parede "de dentro" com cotas de **peitoril**, altura, largura e distância ao canto; porta sem sentido de abertura gera a pendência "sentido de abertura não informado".

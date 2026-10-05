@@ -2,6 +2,8 @@ import RoomObjectSketch from './RoomObjectSketch'
 import { buildObjectPlacements, fitObjectsSketch } from './roomObjects'
 import { useMeasurements } from './Measurement'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { LABEL_SIZES, sketchLabelScale } from './sketchPreferences'
 import type { LabelOffsets, Room } from './models'
 import { DragProvider, Movable, useLabelDrag } from './sketchDrag'
 import { useSketchZoom } from './sketchZoom'
@@ -18,13 +20,16 @@ import type { RoomGeometry } from './roomGeometry'
 const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 // No celular, o croqui recolhido é uma miniatura fixa: zoom só com o croqui expandido.
 const compactLayout = () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 800px)').matches
-export default function Sketch({ room, survey, focusElementId, selectedObjectId, onSelectObject, variant = 'panel', onLabelOffsetsChange, onFocusField, onObjectsChange }: { room?: Room; survey?: RoomGeometry; focusElementId?: string; selectedObjectId?: string; onSelectObject?: (id: string) => void; variant?: 'panel' | 'report'; onLabelOffsetsChange?: (offsets: LabelOffsets) => void; onFocusField?: (elementId: string, field: string) => void; onObjectsChange?: (objects: NonNullable<Room['objects']>) => void }) {
+export default function Sketch({ room, survey, focusElementId, selectedObjectId, onSelectObject, variant = 'panel', onLabelOffsetsChange, onFocusField, onObjectsChange, onLabelScaleChange }: { room?: Room; survey?: RoomGeometry; focusElementId?: string; selectedObjectId?: string; onSelectObject?: (id: string) => void; variant?: 'panel' | 'report'; onLabelOffsetsChange?: (offsets: LabelOffsets) => void; onFocusField?: (elementId: string, field: string) => void; onObjectsChange?: (objects: NonNullable<Room['objects']>) => void; onLabelScaleChange?: (scale: number) => void }) {
   const { unit, format } = useMeasurements()
   const [expanded, setExpanded] = useState(false)
   const [arrange, setArrange] = useState(false)
+  const [moveMode, setMoveMode] = useState(false)
+  const labelScale = sketchLabelScale(room?.sketchLabelScale)
   const svgRef = useRef<SVGSVGElement>(null)
-  const drag = useLabelDrag({ offsets: room?.labelOffsets, onChange: onLabelOffsetsChange, enabled: variant !== 'report' && !!room && !!onLabelOffsetsChange, arrange, svgRef })
-  const zoom = useSketchZoom(svgRef, { panEnabled: !arrange })
+  const drag = useLabelDrag({ offsets: room?.labelOffsets, onChange: onLabelOffsetsChange, enabled: variant !== 'report' && !moveMode && !!room && !!onLabelOffsetsChange, arrange, svgRef })
+  const zoom = useSketchZoom(svgRef, { panEnabled: !arrange, moveMode })
+  useEffect(() => { if (!zoom.zoomed) setMoveMode(false) }, [zoom.zoomed])
   const [selection, setSelection] = useState<{ roomId: string; wallId: string }>()
   useEffect(() => {
     if (room && focusElementId && room.walls.some(wall => wall.id === focusElementId)) setSelection({ roomId: room.id, wallId: focusElementId })
@@ -44,7 +49,7 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
   const selectedWall = room?.walls.find(wall => wall.id === selected)
   return <aside className={variant === 'report' ? 'sketch-panel sketch-report' : `sketch-panel ${expanded ? 'expanded' : ''}`} aria-label="Croqui do ambiente">
     <div className="sketch-heading"><div><span className="eyebrow">VISUALIZAÇÃO</span><h2>Croqui do ambiente</h2></div><button className="expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Recolher' : 'Expandir'}</button></div>
-    <div className={`sketch-paper ${arrange ? 'is-arranging' : ''} ${zoom.zoomed ? 'is-zoomed' : ''} ${selectedObject && onObjectsChange ? 'object-selected' : ''}`} {...(variant === 'report' || (!expanded && compactLayout()) ? {} : zoom.handlers)}>{variant !== 'report' && <div className="zoom-tools" role="group" aria-label="Zoom do croqui"><button onClick={zoom.zoomIn} aria-label="Aproximar">＋</button><button onClick={zoom.zoomOut} disabled={!zoom.zoomed} aria-label="Afastar">－</button>{zoom.zoomed && <button onClick={zoom.reset} aria-label="Ver croqui inteiro">⤢ {Math.round(zoom.zoom * 100)}%</button>}</div>}<DragProvider api={drag.api}><svg ref={svgRef} viewBox={variant === 'report' ? '0 0 440 340' : zoom.viewBox} role="group" aria-label={`Croqui de ${room?.name || 'ambiente'}, com ângulos entre paredes`} {...drag.svgHandlers}>
+    <div className={`sketch-paper ${arrange ? 'is-arranging' : ''} ${zoom.zoomed ? 'is-zoomed' : ''} ${moveMode ? 'is-panning' : ''} ${selectedObject && onObjectsChange ? 'object-selected' : ''}`} {...(variant === 'report' || (!expanded && compactLayout()) ? {} : zoom.handlers)}>{variant !== 'report' && <div className="zoom-tools" role="group" aria-label="Zoom do croqui"><button onClick={zoom.zoomIn} aria-label="Aproximar">＋</button><button aria-label="Mover croqui" aria-pressed={moveMode} disabled={!zoom.zoomed} onClick={() => { setMoveMode(value => !value); setArrange(false) }}>✥ Mover</button><button onClick={zoom.zoomOut} disabled={!zoom.zoomed} aria-label="Afastar">－</button>{zoom.zoomed && <button onClick={zoom.reset} aria-label="Ver croqui inteiro">⤢ {Math.round(zoom.zoom * 100)}%</button>}</div>}<DragProvider api={drag.api} labelScale={labelScale}><svg ref={svgRef} style={{ '--sketch-label-scale': labelScale } as CSSProperties} viewBox={variant === 'report' ? '0 0 440 340' : zoom.viewBox} role="group" aria-label={`Croqui de ${room?.name || 'ambiente'}, com ângulos entre paredes`} {...drag.svgHandlers}>
       <defs><pattern id={`${svgId}-grid`} width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" style={{ fill: 'var(--c-d7ddd4)' }}/></pattern><marker id={`${svgId}-arrow`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" style={{ fill: 'var(--c-947239)' }}/></marker></defs>
       <rect width="440" height="340" fill={`url(#${svgId}-grid)`}/>
       <text x="20" y="24" className="svg-caption">↻ Perímetro em sentido horário · ângulos internos</text>
@@ -103,13 +108,14 @@ export default function Sketch({ room, survey, focusElementId, selectedObjectId,
         </g>
       })}
       {/* Objetos por cima dos rótulos, para poderem ser selecionados e arrastados mesmo sob um rótulo. */}
-      <RoomObjectSketch onMove={room && onObjectsChange && variant !== 'report' ? (objectId, position) => onObjectsChange((room.objects ?? []).map(item => item.id === objectId ? { ...item, position } : item)) : undefined} placements={objectPlacements} geometry={geometry} selectedId={selectedObjectId} onSelect={objectId => { setSelection(undefined); setExpanded(false); onSelectObject?.(objectId) }}/>
+      <RoomObjectSketch onMove={!moveMode && room && onObjectsChange && variant !== 'report' ? (objectId, position) => onObjectsChange((room.objects ?? []).map(item => item.id === objectId ? { ...item, position } : item)) : undefined} placements={objectPlacements} geometry={geometry} selectedId={selectedObjectId} onSelect={objectId => { setSelection(undefined); setExpanded(false); onSelectObject?.(objectId) }}/>
     </svg></DragProvider></div>
-    {drag.api.enabled && <div className="label-tools">
-      <button className={`label-arrange ${arrange ? 'is-on' : ''}`} aria-pressed={arrange} onClick={() => { setArrange(value => !value); drag.setActive(undefined) }}>✥ {arrange ? 'Concluir ajuste' : 'Ajustar rótulos'}</button>
+    {variant !== 'report' && room && <div className="label-tools">
+      <button className={`label-arrange ${arrange ? 'is-on' : ''}`} aria-pressed={arrange} onClick={() => { setArrange(value => !value); setMoveMode(false); drag.setActive(undefined) }}>✥ {arrange ? 'Concluir ajuste' : 'Ajustar rótulos'}</button>
       {drag.active && drag.offsets[drag.active] && <button onClick={() => { drag.reset(drag.active); drag.setActive(undefined) }}>↺ Restaurar {labelName(drag.active, room!, geometry)}</button>}
       {Object.keys(drag.offsets).length > 0 && <button onClick={() => { if (window.confirm('Voltar todos os rótulos deste croqui para a posição automática?')) { drag.reset(); drag.setActive(undefined) } }}>↺ Restaurar todos ({Object.keys(drag.offsets).length})</button>}
-      <span className="label-hint">{arrange ? 'Arraste os rótulos com o dedo ou o mouse. Setas do teclado também movem; Delete restaura.' : 'Com o mouse, arraste qualquer rótulo. No celular, toque em “Ajustar rótulos”. Pinça com dois dedos aproxima; com zoom, um dedo arrasta o desenho.'}</span>
+      {onLabelScaleChange && <label className="label-size-control">Tamanho dos rótulos<select value={labelScale} onChange={event => onLabelScaleChange(Number(event.target.value))}>{LABEL_SIZES.map(size => <option key={size} value={size}>{size * 100}%{size === 1 ? ' — padrão' : ''}</option>)}</select></label>}
+      <span className="label-hint">{moveMode ? 'Arraste com o mouse ou com um dedo para mover somente a visualização. Desative Mover para selecionar elementos.' : arrange ? 'Arraste os rótulos com o dedo ou o mouse. Setas do teclado também movem; Delete restaura.' : 'Com o mouse, arraste qualquer rótulo. No celular, toque em “Ajustar rótulos”. Pinça com dois dedos aproxima; com zoom, arraste o fundo ou ative Mover para navegar.'}</span>
     </div>}
     <div className="sketch-note" role="status"><span className="status-dot"/>{selectedObject ? `${selectedObject.displayId} — ${selectedObject.name} selecionado` : selectedWall ? `Parede ${selectedWall.label} selecionada` : onFocusField ? 'Toque em uma parede ou abertura para ir ao campo dela' : 'Clique em uma parede ou objeto para selecionar'}</div>
     <div className="geometry-notes">

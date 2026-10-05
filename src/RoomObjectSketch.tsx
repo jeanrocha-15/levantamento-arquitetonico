@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
+import { useSketchLabelScale } from './sketchDrag'
 import { useMeasurements } from './Measurement'
 import type { buildPerimeter } from './geometry'
 import type { ObjectPlacement } from './roomObjects'
@@ -7,6 +8,7 @@ import { objectDimensionsLabel, objectCategoryNames } from './roomObjects'
 
 export default function RoomObjectSketch({ placements, geometry, selectedId, onSelect, onMove }: { placements: ObjectPlacement[]; geometry: ReturnType<typeof buildPerimeter>; selectedId?: string; onSelect?: (id: string) => void; onMove?: (id: string, position: { xM: number; yM: number }) => void }) {
   const { unit, format } = useMeasurements()
+  const labelScale = useSketchLabelScale()
   // Arrastar no croqui: com o mouse, qualquer objeto; no toque, só o objeto já selecionado (para não atrapalhar a rolagem).
   // O deslocamento em pixels do desenho é convertido em metros pela escala atual; grava ao soltar, arredondado ao milímetro.
   const drag = useRef<{ id: string; pointerId: number; x: number; y: number; ratio: number; start: { xM: number; yM: number }; moved: boolean }>(undefined)
@@ -39,8 +41,8 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
     const point = geometry.project(moving ? { x: center.x + live.xM - object.position.xM!, y: center.y + live.yM - object.position.yM! } : center), width = widthM * geometry.scale, height = heightM * geometry.scale
     if (![point.x, point.y, width, height].every(Number.isFinite)) return null
     const label = objectDimensionsLabel(object, unit)
-    const codeFits = width >= object.displayId.length * 6 + 6 && (object.shape === 'line' || height >= 16)
-    const dimensionsFit = codeFits && width >= label.length * 5 + 8 && height >= 36
+    const codeFits = width >= (object.displayId.length * 6 + 6) * labelScale && (object.shape === 'line' || height >= 16 * labelScale)
+    const dimensionsFit = codeFits && width >= (label.length * 5 + 8) * labelScale && height >= 36 * labelScale
     const select = () => { if (!suppress.current) onSelect?.(object.id) }
     return <g key={object.id} data-object-id={object.id} className={`svg-room-object ${selectedId === object.id ? 'is-selected' : ''} ${moving ? 'is-moving' : ''} ${onMove ? 'is-movable' : ''}`} onPointerDown={event => begin(event, object)} onPointerMove={move} onPointerUp={end} onPointerCancel={end} role="button" tabIndex={0} aria-pressed={selectedId === object.id} aria-label={`${object.displayId} ${object.name}, ${objectCategoryNames[object.category]}, ${label}, rotação ${object.rotationDegrees}°`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select() } }}>
       <title>{`${object.displayId} — ${object.name} · ${label} · ${object.rotationDegrees}°${object.note ? ` · ${object.note}` : ''}`}</title>
@@ -50,7 +52,7 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
         {object.shape === 'circle' && <circle className="object-shape" r={width / 2}/>}
         {object.shape === 'line' && <><line className="object-hit" x1={-width / 2} x2={width / 2} y1="0" y2="0"/><line className="object-shape" x1={-width / 2} x2={width / 2} y1="0" y2="0"/></>}
       </g>
-      {(codeFits || selectedId === object.id) && <text className="object-label" x={point.x} y={point.y + (object.shape === 'line' ? -8 : dimensionsFit ? -3 : 3)} textAnchor="middle" pointerEvents="none">{object.displayId}{dimensionsFit && <tspan x={point.x} dy="13">{label}</tspan>}</text>}
+      {(codeFits || selectedId === object.id) && <text transform={labelScale === 1 ? undefined : `translate(${point.x} ${point.y}) scale(${labelScale}) translate(${-point.x} ${-point.y})`} className="object-label" x={point.x} y={point.y + (object.shape === 'line' ? -8 : dimensionsFit ? -3 : 3)} textAnchor="middle" pointerEvents="none">{object.displayId}{dimensionsFit && <tspan x={point.x} dy="13">{label}</tspan>}</text>}
       {moving && <text className="object-move-readout" x={point.x} y={point.y - Math.max(height, 16) / 2 - 6} textAnchor="middle" pointerEvents="none">X {format(live.xM)} · Y {format(live.yM)}</text>}
     </g>
   })}</g>

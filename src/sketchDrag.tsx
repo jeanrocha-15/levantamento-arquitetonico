@@ -40,6 +40,8 @@ interface DragApi {
   suppressClick: RefObject<boolean>
 }
 const DragContext = createContext<DragApi | null>(null)
+const LabelScaleContext = createContext(1)
+export const useSketchLabelScale = () => useContext(LabelScaleContext)
 export const useLabelOffset = (key: string) => useContext(DragContext)?.offset(key) ?? ZERO
 
 export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRef }: { offsets?: LabelOffsets; onChange?: (offsets: LabelOffsets) => void; enabled: boolean; arrange: boolean; svgRef: RefObject<SVGSVGElement | null> }) {
@@ -91,18 +93,21 @@ export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRe
   return { api, offsets, active, setActive, svgHandlers: { onPointerMove: move, onPointerUp: end, onPointerCancel: cancel }, reset: (key?: string) => onChange?.(key ? setOffset(offsets, key, null) : {}), dragging: !!live }
 }
 
-export function DragProvider({ api, children }: { api: DragApi; children: ReactNode }) {
-  return <DragContext value={api}>{children}</DragContext>
+export function DragProvider({ api, children, labelScale = 1 }: { api: DragApi; children: ReactNode; labelScale?: number }) {
+  return <LabelScaleContext value={labelScale}><DragContext value={api}>{children}</DragContext></LabelScaleContext>
 }
 
 // Envolve um rótulo: aplica o deslocamento e trata arrastar (mouse/toque) e setas do teclado.
 export function Movable({ id, box, title, children }: { id: string; box: LabelBox; title?: string; children: ReactNode }) {
   const api = useContext(DragContext)
+  const scale = useSketchLabelScale()
   const offset = api?.offset(id) ?? ZERO
-  if (!api) return <g>{children}</g>
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2
+  const sizing = scale === 1 ? '' : `translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`
+  if (!api) return <g transform={sizing || undefined}>{children}</g>
   const moved = offset.dx !== 0 || offset.dy !== 0
   const className = `movable-label${api.enabled ? ' is-movable' : ''}${api.arrange ? ' is-arranging' : ''}${api.active === id ? ' is-active' : ''}${moved ? ' is-moved' : ''}`
-  return <g className={className} data-label-key={id} transform={moved ? `translate(${offset.dx} ${offset.dy})` : undefined}
+  return <g className={className} data-label-key={id} transform={`${moved ? `translate(${offset.dx} ${offset.dy})` : ''} ${sizing}`.trim() || undefined}
     pointerEvents={api.enabled ? 'auto' : 'none'} tabIndex={api.enabled && api.arrange ? 0 : undefined} role={api.enabled && api.arrange ? 'button' : undefined}
     aria-label={api.enabled && api.arrange ? `Rótulo ${title ?? id}: use as setas para mover, Delete para restaurar` : undefined}
     onPointerDown={event => api.start(id, box, event)}

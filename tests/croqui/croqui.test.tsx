@@ -18,6 +18,20 @@ function sala() {
 }
 
 describe('Croqui — rótulos realocáveis', () => {
+  it('reduz letras e medidas, preserva deslocamentos e salva a preferência sem alterar medidas', () => {
+    const room = sala(), original = structuredClone(room)
+    const normal = svg(room)
+    const smaller = {...room, sketchLabelScale: 0.5, labelOffsets:{[`wall:${room.walls[0].id}`]:{dx:12,dy:6}}}
+    const html = svg(smaller,()=>{})
+    expect(normal).not.toContain('scale(0.5)')
+    expect(html).toContain('scale(0.5)')
+    expect(html).toContain('translate(12 6)')
+    expect(room).toEqual(original)
+    const project: Project = {id:'p',name:'Casa',floors:[{id:room.floorId,name:'Térreo',rooms:[smaller]}],relationships:[]}
+    const restored=decodeSnapshot(encodeSnapshot(createSnapshot({projects:[project],projectId:'p',floorId:room.floorId,roomId:room.id})))
+    expect(restored.data.projects[0].floors[0].rooms[0].sketchLabelScale).toBe(0.5)
+    expect(restored.data.projects[0].floors[0].rooms[0].walls).toEqual(room.walls)
+  })
   it('aplica o deslocamento salvo ao rótulo e à linha de chamada', () => {
     const room = sala(), j01 = room.openings[0]
     const before = svg(room)
