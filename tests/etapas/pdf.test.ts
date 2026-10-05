@@ -46,13 +46,13 @@ describe('Etapa 17 — PDF em escala física real', () => {
     const options = fittingOptions(extent)
     expect(options.length).toBeGreaterThan(0)
     expect(options.every(option => fits(extent, option))).toBe(true)
-    expect(options[0].scale).toBe(50) // 14 m a 1:50 = 280 mm: cabe em A3 paisagem
+    expect(options[0].scale).toBe(20) // A1/A0 agora permitem mais detalhe; a sugestão nunca muda a escala sozinha.
   })
   it('prancha traz identificação, escala gráfica e avisos de impressão', () => {
     const room = roomFrom('Quarto', [4, 3.2, 4.4456, 3], [82, null, null, null]); room.displayId = 'AMB-002'
     room.corners = room.corners.map((corner, index) => index ? { ...corner, angleSource: 'calculated', angleDegrees: null } : corner)
     const { project } = proj(room)
     const text = new TextDecoder('latin1').decode(roomSheetPdf({ project, room, option: { sheet: 'A3', orientation: 'landscape', scale: 25 }, date: new Date(2026, 9, 3) }).bytes)
-    for (const expected of ['AMB-002', 'Quarto', 'Escala 1:25', 'Projeto: Casa teste', 'Pavimento', 'Para preservar a escala, imprimir em 100% / Tamanho real. N\\343o utilizar "Ajustar \\340 p\\341gina".', 'Geometria aproximada baseada no levantamento de campo.', '(0) Tj', '(3 m) Tj', '03/10/2026']) expect(text).toContain(expected)
+    for (const expected of ['AMB-002', 'Quarto', 'Escala 1:25', 'Projeto: Casa teste', 'Pavimento', 'Imprimir em 100% / Tamanho real para preservar a escala.', 'Geometria aproximada baseada no levantamento de campo.', '(0) Tj', '(1,5 m) Tj', '03/10/2026']) expect(text).toContain(expected)
   })
 })
