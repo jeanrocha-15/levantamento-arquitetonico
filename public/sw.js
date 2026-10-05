@@ -1,10 +1,10 @@
 // Service worker do LAC: permite abrir a aplicação sem conexão (uso em campo).
 // Os dados dos levantamentos ficam no IndexedDB; aqui só são guardados os arquivos da aplicação.
-const CACHE = 'campo-app-v2-lac'
+const CACHE = 'campo-app-v3-lac-favicon'
 const scope = new URL(self.registration.scope)
 const isIndex = url => url.pathname === scope.pathname || url.pathname === `${scope.pathname}index.html`
 const isAsset = url => url.pathname.startsWith(`${scope.pathname}assets/`)
-const isStatic = url => /\/(lac-[\w-]+\.svg|favicon\.svg|manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon\.png)$/.test(url.pathname)
+const isStatic = url => /\/(lac-[\w-]+\.(?:svg|png|ico)|favicon\.(?:svg|ico)|manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon\.png)$/.test(url.pathname)
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil((async () => {
