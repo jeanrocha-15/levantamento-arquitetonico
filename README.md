@@ -4,6 +4,8 @@ Estrutura inicial em React, TypeScript e Vite. Interface em português, com proj
 
 ## GitHub e publicação
 
+Compatibilização em 05/10/2026: as propostas #1, #2 e #3 foram integradas preservando seu histórico e os recursos locais da etapa 14. Os conflitos em dependências, tema, testes, croqui, formulários, relatórios e exportações foram resolvidos mantendo as implementações mais completas. `npm test` passou nas suítes locais e nos 67 testes do Vitest; `npm run build` passou. O teste de integração do servidor depende de `TEST_DATABASE_URL` e não foi executado nesta validação. No GitHub Pages, o aplicativo continua local, sem ativar login ou sincronização com servidor.
+
 Código: https://github.com/jeanrocha-15/levantamento-arquitetonico (repositório público).
 
 Aplicação: https://jeanrocha-15.github.io/levantamento-arquitetonico/
