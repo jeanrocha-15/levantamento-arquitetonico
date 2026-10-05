@@ -56,6 +56,8 @@ export interface Room { id: string; displayId?: string; name: string; floorId: s
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
 export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
+// Metros e graus, apenas na Planta Geral. Nunca são coordenadas do croqui individual.
+export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number }
 export interface RoofWater { id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
 export interface Roof { id: string; displayId: string; projectId: string; floorId?: string; name: string; shape: 'rectangular' | 'square'; lengthM: number | null; widthM: number | null; waterCount: 1 | 2 | 3 | 4; waters: RoofWater[]; note?: string; photos?: Photo[]; checks?: Record<string, TechnicalCheck> }
-export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[] }
+export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[] }
