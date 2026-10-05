@@ -1,7 +1,7 @@
 import type { Project,RoomPlacement } from './models'
 import type { FaceRange } from './wallFaces'
 import { buildPlanRoom,floorRooms,worldPoint,normalOf,pointDistance,planTolerance } from './floorPlan'
-import { planRelationships,planFeature,featureAlignment } from './floorPlanConnections'
+import { planRelationships,planFeature,sharedWallAlignment,sameSideForRelationship } from './floorPlanConnections'
 // Only explicitly related, aligned walls are fused in this rendering projection.
 // The two independent walls, their measurements and their openings remain intact.
 export function sharedPlanFaces(project:Project,floorId:string,placements:RoomPlacement[]) {
@@ -10,7 +10,7 @@ export function sharedPlanFaces(project:Project,floorId:string,placements:RoomPl
  relations.forEach(r=>[`${r.sourceRoomId}:${r.sourceElementId}`,`${r.targetRoomId}:${r.targetElementId}`].forEach(key=>counts.set(key,(counts.get(key)??0)+1)))
  for(const r of relations){const a=rooms.find(x=>x.id===r.sourceRoomId),b=rooms.find(x=>x.id===r.targetRoomId),pa=placements.find(x=>x.roomId===r.sourceRoomId),pb=placements.find(x=>x.roomId===r.targetRoomId),ka=`${r.sourceRoomId}:${r.sourceElementId}`,kb=`${r.targetRoomId}:${r.targetElementId}`;if(!a||!b||!pa||!pb||counts.get(ka)!==1||counts.get(kb)!==1)continue
  const sa=buildPlanRoom(a),sb=buildPlanRoom(b),fa=planFeature(sa,'shared_wall',r.sourceElementId),fb=planFeature(sb,'shared_wall',r.targetElementId);if(!fa||!fb||!fa.thickness||!fb.thickness)continue
- const wa={...fa,start:worldPoint(fa.start,pa),end:worldPoint(fa.end,pa)},wb={...fb,start:worldPoint(fb.start,pb),end:worldPoint(fb.end,pb)},alignment=featureAlignment(wa,wb)
+ const wa={...fa,start:worldPoint(fa.start,pa),end:worldPoint(fa.end,pa)},wb={...fb,start:worldPoint(fb.start,pb),end:worldPoint(fb.end,pb)},alignment=sharedWallAlignment(wa,wb,sameSideForRelationship(project,r))
  if(alignment.distanceM>planTolerance.alignmentM||alignment.angleDegrees>planTolerance.angleDegrees||alignment.differenceM>planTolerance.lengthM)continue
  const origin=wa.start,length=pointDistance(wa.start,wa.end),d={x:(wa.end.x-origin.x)/length,y:(wa.end.y-origin.y)/length},n=normalOf(wa.start,wa.end),dot=(p:{x:number;y:number})=>(p.x-origin.x)*d.x+(p.y-origin.y)*d.y
  const raw=[...(sa.faces.get(r.sourceElementId!)??[]).map(f=>({start:worldPoint(f.start,pa),end:worldPoint(f.end,pa)})),...(sb.faces.get(r.targetElementId!)??[]).map(f=>({start:worldPoint(f.start,pb),end:worldPoint(f.end,pb)}))],points=raw.flatMap(f=>[f.start,f.end]);if(!points.length)continue

@@ -91,6 +91,6 @@ export function reconcileSpatialConnections(project:Project):Project {
   }
   for(const r of project.relationships)if(r.type==='adjacency'||r.type==='manual_reference')add('manual',{roomId:r.sourceRoomId,elementId:r.sourceElementId},{roomId:r.targetRoomId,elementId:r.targetElementId},project.spatialConnections?.find(c=>c.id===r.spatialConnectionId))
   const relationships=project.relationships.filter(r=>r.type!=='corner').map(r=>({...r,spatialConnectionId:connections.find(c=>pairKey(c.a,c.b)===pairKey({roomId:r.sourceRoomId,elementId:r.sourceElementId},{roomId:r.targetRoomId,elementId:r.targetElementId}))?.id}))
-  connections.filter(c=>c.type==='corner').forEach(c=>relationships.push({id:c.id,type:'corner',sourceRoomId:c.a.roomId,sourceElementId:c.a.elementId,targetRoomId:c.b.roomId,targetElementId:c.b.elementId,spatialConnectionId:c.id,sourceFace:c.a.face,targetFace:c.b.face,orientation:c.orientation}))
+  connections.filter(c=>c.type==='corner').forEach(c=>relationships.push({id:c.id,type:'corner',sourceRoomId:c.a.roomId,sourceElementId:c.a.elementId,targetRoomId:c.b.roomId,targetElementId:c.b.elementId,spatialConnectionId:c.id,sourceFace:c.a.face,targetFace:c.b.face,orientation:c.orientation,placementMode:c.placementMode,sharedWallId:c.sharedWallId}))
   return {...project,spatialConnections:connections,relationships}
 }

@@ -32,7 +32,7 @@ export function buildPlanRoom(room:Room) {
   const uncut=buildWallFaces(survey.perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace})))
   const interiorPolygon=survey.perimeter.segments.map(s=>uncut.get(s.wall.id)?.[0]?.start ?? s.start)
   const points=[{x:0,y:0},...survey.perimeter.segments.flatMap(s=>[s.start,s.end]),...[...faces.values(),...internalFaces.values()].flat().flatMap(f=>[f.start,f.end]),...objects.flatMap(o=>o.bounds)]
-  return {room,survey,faces,internalFaces,objects,polygon,interiorPolygon,points}
+  return {room,survey,faces,uncutFaces:uncut,internalFaces,objects,polygon,interiorPolygon,points}
 }
 export type PlanRoom=ReturnType<typeof buildPlanRoom>
 export function planBounds(points:Point[]) {const p=points.length?points:[{x:0,y:0}];const minX=Math.min(...p.map(p=>p.x)),maxX=Math.max(...p.map(p=>p.x)),minY=Math.min(...p.map(p=>p.y)),maxY=Math.max(...p.map(p=>p.y));return {minX,maxX,minY,maxY,width:maxX-minX,height:maxY-minY}}

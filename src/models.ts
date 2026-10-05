@@ -1,7 +1,7 @@
 export type MeasurementSource = 'measured' | 'informed' | 'assumed' | 'calculated'
 // Todos os comprimentos são armazenados em metros.
 export type WallType = 'masonry' | 'drywall' | 'concrete' | 'glass' | 'wood' | 'partition' | 'other'
-export interface Wall { id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string } }
+export interface Wall { id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string; placementSide?: 'opposite' | 'same' } }
 export type AngleSource = 'assumed' | 'informed' | 'calculated'
 export interface Corner { id: string; wallIds: [string, string]; angleDegrees: number | null; angleSource: AngleSource | null }
 export interface Diagonal { id: string; cornerIds: [string, string]; lengthM: number | null; source: 'measured' }
@@ -26,10 +26,10 @@ export interface InternalWall {
 }
 export type RoomRelationshipType = 'opening_connection' | 'shared_wall' | 'adjacency' | 'manual_reference' | 'corner'
 export interface SpatialSide { roomId: string; elementId?: string; face?: 'internal' | 'external' }
-export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; note?: string }
+export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; note?: string }
 export interface RoomRelationship {
   id: string; type: RoomRelationshipType; sourceRoomId: string; sourceElementId?: string;
-  targetRoomId: string; targetElementId?: string; note?: string; spatialConnectionId?: string; orientation?: 'normal' | 'inverted'; sourceFace?: 'internal' | 'external'; targetFace?: 'internal' | 'external'
+  targetRoomId: string; targetElementId?: string; note?: string; spatialConnectionId?: string; orientation?: 'normal' | 'inverted'; sourceFace?: 'internal' | 'external'; targetFace?: 'internal' | 'external'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; derivedFromCornerId?: string
 }
 export interface PendingItem { id: string; description: string; resolved: boolean; kind?: 'manual' | 'technical'; reason?: 'check_on_site' | 'doubtful'; elementId?: string; field?: string; note?: string; issueKey?: string }
 export type RoomObjectCategory = 'furniture' | 'equipment' | 'object' | 'other' | 'structural'
