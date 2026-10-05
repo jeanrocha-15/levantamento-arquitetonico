@@ -39,5 +39,7 @@ describe('Canto como referência de ambiente interno ou anexo',()=>{
   expect(loaded.spatialConnections?.[0].placementMode).toBe('inside');expect(loaded.roomPlacements).toEqual(p.roomPlacements)
   expect(loaded.floors[0].rooms.flatMap(r=>r.walls).every(w=>!w.sharedWallReference)).toBe(true)
   expect(planCompatibility(loaded,a.floorId).alerts).toEqual([])
+  const connection=loaded.spatialConnections![0],anchor=loaded.roomPlacements!.find(x=>x.roomId===a.id)!,updated=confirmCornerConnection(loaded,connection,anchor,loaded.roomPlacements!.find(x=>x.roomId===b.id)!)
+  expect(updated.spatialConnections).toHaveLength(1);expect(updated.spatialConnections![0].id).toBe(connection.id)
  })
 })

@@ -39,7 +39,7 @@ export function cornerSnap(connection:SpatialConnection,source:Room,target:Room,
 }
 export function confirmCornerConnection(project:Project,connection:SpatialConnection,anchor:RoomPlacement,preview:RoomPlacement):Project {
  const positioned=putRoomPlacement(putRoomPlacement(project,anchor),preview)
- return {...positioned,spatialConnections:[...project.spatialConnections??[],connection]}
+ return {...positioned,spatialConnections:[...(project.spatialConnections??[]).filter(c=>c.id!==connection.id),connection]}
 }
 
 // Incident wall pairs are derived from the corner link; no duplicate wall records are created.
