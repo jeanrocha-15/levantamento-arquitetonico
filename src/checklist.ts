@@ -1,9 +1,9 @@
 import { structuralVerification } from './structural'
 import { roofChecklist } from './roofs'
-import { COMPLETION_ITEMS, TECHNICAL_ITEMS, technicalCheck, technicalItemId, itemKeyForEntity } from './technicalChecklist'
+import { COMPLETION_ITEMS, TECHNICAL_ITEMS, technicalCheck, technicalItemId, itemKeyForEntity, validGeneralValue } from './technicalChecklist'
 import { objectProblems } from './roomObjects'
 import { formatMeasurement } from './units'
-import type { Project, Room } from './models'
+import type { CheckStatus, Project, Room } from './models'
 import { getWallReferences } from './openings'
 import { buildRoomGeometry } from './roomGeometry'
 import type { RoomGeometry } from './roomGeometry'
@@ -51,6 +51,7 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
   }
   require(!!room.name.trim(), room.id, 'name', 'Nome do ambiente ausente.')
   require(positive(room.ceilingHeightM), room.id, 'ceilingHeightM', 'Pé-direito não informado ou inválido.')
+  mark('walls',room.walls.length>0)
   room.walls.forEach(wall => require(positive(wall.lengthM), wall.id, 'lengthM', `Parede ${wall.label} sem comprimento válido.`))
   room.walls.forEach(wall => { if (wall.thickness != null && !positive(wall.thickness)) warning(wall.id, 'thickness', `Parede ${wall.label}: espessura opcional inválida.`) })
   const derived = survey ?? buildRoomGeometry(room)
@@ -112,10 +113,12 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
   issues.filter(issue=>issue.kind!=='automatic').forEach(issue=>mark(itemKeyForEntity(room,issue.elementId,issue.field),false))
   const checks=COMPLETION_ITEMS.map(item=>{
     const check=technicalCheck(room,project,item.key), valid=validity.get(item.key) ?? true
-    const valueValid=!item.general || !!check.value?.trim()
-    const completed=check.status==='na' || check.status==='ok' && valid && valueValid
+    const valueValid=!item.general || validGeneralValue(item.key,check.value)
+    const verifiable=item.general || validity.has(item.key)
+    const status:CheckStatus=check.status==='na'?'na':verifiable?(valid && valueValid?'ok':'pending'):check.status
+    const completed=status==='na' || status==='ok' && valid && valueValid
     if(!completed && !issues.some(issue=>itemKeyForEntity(room,issue.elementId,issue.field)===item.key)) issues.push({id:`check:${room.id}:${item.key}`,roomId:room.id,elementId:technicalItemId(room,item.key),field:`check:${item.key}`,description:`${item.group} — ${item.label}: ${check.status==='ok'?'dados incompletos ou medidas a conferir':'pendente'}.`,kind:'technical'})
-    return {...item,...check,completed,dataValid:valid && valueValid,id:technicalItemId(room,item.key),obligationId:`${item.general?project.id:room.id}:check:${item.key}`}
+    return {...item,...check,status,automatic:verifiable,completed,dataValid:valid && valueValid,id:technicalItemId(room,item.key),obligationId:`${item.general?project.id:room.id}:check:${item.key}`}
   })
   const structuralObjects=(room.objects ?? []).filter(o=>o.category==='structural')
   const structuralChecks=structuralObjects.flatMap(object=>structuralVerification(object).map(check=>({...check,id:`${object.id}:check:${check.key}`})))
@@ -137,4 +140,16 @@ export function projectChecklistSummary(project:Project, results=projectRooms(pr
   for(const roof of project.roofs ?? []) {const result=roofChecklist(roof);result.obligations.forEach(c=>obligations.set(c.id,c.completed));result.issues.forEach(issue=>issues.set(issue.id,issue))}
   const checks=[...obligations].filter(([id])=>id.includes(':check:'))
   return {completeness:obligations.size?Math.round(100*[...obligations.values()].filter(Boolean).length/obligations.size):0,checksTotal:checks.length,checksCompleted:checks.filter(([,completed])=>completed).length,issues:[...issues.values()],photosCount:results.reduce((sum,result)=>sum+result.photosCount,0)+(project.roofs ?? []).reduce((sum,r)=>sum+(r.photos?.length ?? 0),0)+(project.detachedRoofPhotos?.length ?? 0)}
+}
+
+// Persist derived statuses at edit boundaries, retaining manual N/A and observations.
+export function recalculateChecklist(project:Project):Project {
+  const visit=(rooms:Room[]):Room[]=>rooms.map(room=>{
+    const result=roomChecklist(room,project),checks={...room.technicalChecks}
+    result.checks.filter(c=>c.automatic&&!c.general).forEach(c=>{checks[c.key]={...checks[c.key],status:c.status}})
+    return {...room,technicalChecks:checks,subrooms:visit(room.subrooms)}
+  })
+  const generalChecks={...project.generalChecks}
+  TECHNICAL_ITEMS.filter(item=>item.general).forEach(item=>{const check=generalChecks[item.key];if(check?.status!=='na')generalChecks[item.key]={...check,status:validGeneralValue(item.key,check?.value)?'ok':'pending'}})
+  return {...project,generalChecks,floors:project.floors.map(f=>({...f,rooms:visit(f.rooms)}))}
 }

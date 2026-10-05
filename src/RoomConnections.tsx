@@ -1,11 +1,21 @@
+import { useState } from 'react'
+import { availableCounterpart, openingConnectionStatus } from './spatialConnections'
 import type { Opening, Room } from './models'
 export interface RoomOption { room: Room; path: string }
-export function OpeningConnection({ opening, rooms, onChange }: { opening: Opening; rooms: RoomOption[]; onChange: (change: Partial<Opening>) => void }) {
+export function OpeningConnection({ opening, roomId, rooms, onChange, onCreate, floorId }: { floorId:string; opening: Opening; roomId:string; rooms: RoomOption[]; onChange: (change: Partial<Opening>) => void; onCreate?:(name:string,parentId?:string)=>void }) {
+  const [creating,setCreating]=useState(false),[name,setName]=useState(''),[parent,setParent]=useState('')
   const target = rooms.find(item => item.room.id === opening.connectedRoomId)?.room
-  return <details className="optional-connections"><summary>Vínculo opcional entre ambientes{target ? ` · ${target.name}` : ''}</summary><div className="connection-fields">
+  const available=target?.openings.filter(item=>availableCounterpart(opening,roomId,item)) ?? []
+  return <details className="optional-connections"><summary>{openingConnectionStatus(opening,rooms.map(r=>r.room))}{target ? ` · ${target.name}` : ''}</summary><div className="connection-fields">
     <label>Leva para<select value={opening.connectedRoomId ?? ''} onChange={event => onChange({ connectedRoomId: event.target.value || undefined, connectedOpeningId: undefined })}><option value="">Sem vínculo</option>{rooms.map(item => <option key={item.room.id} value={item.room.id}>{item.path}</option>)}</select></label>
-    {target && <label>Abertura correspondente (opcional)<select value={opening.connectedOpeningId ?? ''} onChange={event => onChange({ connectedOpeningId: event.target.value || undefined })}><option value="">Não definida</option>{target.openings.filter(item => item.type !== 'window').map(item => <option key={item.id} value={item.id}>{item.label} · Parede {target.walls.find(wall => wall.id === item.wallId)?.label ?? '?'}</option>)}</select></label>}
-    <p className="angle-help">Vínculo informativo. Cada ambiente mantém seu próprio croqui.</p>
+    {onCreate && <button onClick={()=>setCreating(v=>!v)}>＋ Criar novo ambiente</button>}
+    {creating && <div className="inline-room-create"><label>Nome do novo ambiente<input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex.: Cozinha"/></label><label>Organização<select value={parent} onChange={e=>setParent(e.target.value)}><option value="">Ambiente no mesmo pavimento</option><option value={roomId}>Subambiente do ambiente atual</option>{rooms.filter(r=>r.room.floorId===floorId).map(r=><option key={r.room.id} value={r.room.id}>Subambiente de {r.room.name}</option>)}</select></label><button disabled={!name.trim()} onClick={()=>{onCreate?.(name.trim(),parent||undefined);setCreating(false);setName('');setParent('')}}>Criar e vincular</button><button onClick={()=>setCreating(false)}>Cancelar</button></div>}
+    {target && <label>Abertura correspondente (opcional)<select value={opening.connectedOpeningId ?? ''} onChange={event => {
+      const candidate=target.openings.find(o=>o.id===event.target.value)
+      if(candidate && (!Object.is(candidate.widthM,opening.widthM)||!Object.is(candidate.heightM,opening.heightM)) && !window.confirm(`Usar as dimensões de ${target.name} / ${candidate.label} nas duas pontas? As futuras alterações de largura e altura serão sincronizadas.`))return
+      onChange({ connectedOpeningId: event.target.value || undefined,...(candidate?{label:candidate.label}:{}) })
+    }}><option value="">Não definida</option>{available.map(item => <option key={item.id} value={item.id}>{item.label} · Parede {target.walls.find(wall => wall.id === item.wallId)?.label ?? '?'}</option>)}</select></label>}
+    <p className="angle-help">Uma abertura física possui uma única contraparte do mesmo tipo. Largura e altura vinculadas são sincronizadas. Posição e croquis continuam independentes.</p>
   </div></details>
 }
 export function SharedWalls({ room, rooms, onChange }: { room: Room; rooms: RoomOption[]; onChange: (room: Room) => void }) {

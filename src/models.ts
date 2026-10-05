@@ -24,10 +24,12 @@ export interface InternalWall {
   orientationDegrees: number | null; thicknessM?: number | null; heightM?: number | null; note?: string;
   formalDivisionRelationshipId?: string
 }
-export type RoomRelationshipType = 'opening_connection' | 'shared_wall' | 'adjacency' | 'manual_reference'
+export type RoomRelationshipType = 'opening_connection' | 'shared_wall' | 'adjacency' | 'manual_reference' | 'corner'
+export interface SpatialSide { roomId: string; elementId?: string; face?: 'internal' | 'external' }
+export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; note?: string }
 export interface RoomRelationship {
   id: string; type: RoomRelationshipType; sourceRoomId: string; sourceElementId?: string;
-  targetRoomId: string; targetElementId?: string; note?: string
+  targetRoomId: string; targetElementId?: string; note?: string; spatialConnectionId?: string; orientation?: 'normal' | 'inverted'; sourceFace?: 'internal' | 'external'; targetFace?: 'internal' | 'external'
 }
 export interface PendingItem { id: string; description: string; resolved: boolean; kind?: 'manual' | 'technical'; reason?: 'check_on_site' | 'doubtful'; elementId?: string; field?: string; note?: string; issueKey?: string }
 export type RoomObjectCategory = 'furniture' | 'equipment' | 'object' | 'other' | 'structural'
@@ -58,6 +60,6 @@ export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
 // Metros e graus, apenas na Planta Geral. Nunca são coordenadas do croqui individual.
 export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number }
-export interface RoofWater { id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
+export interface RoofWater { inclinationPercent?: number | null; id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
 export interface Roof { id: string; displayId: string; projectId: string; floorId?: string; name: string; shape: 'rectangular' | 'square'; lengthM: number | null; widthM: number | null; waterCount: 1 | 2 | 3 | 4; waters: RoofWater[]; note?: string; photos?: Photo[]; checks?: Record<string, TechnicalCheck> }
-export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[] }
+export interface Project { openingCounters?: Record<OpeningType, number>; spatialConnections?: SpatialConnection[]; id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[] }

@@ -13,7 +13,7 @@ export default function InternalWallEditor({ room, onChange, checks }: { room: R
     const wall = room.walls[0]
     const reference = getWallReferences(room.walls, room.corners, wall.id)[0]
     const sequence = (room.internalWallCounter ?? 0) + 1
-    const internalWall: InternalWall = { id: id(), label: internalWallLabel(sequence), origin: { type: 'perimeter_wall', wallId: wall.id, referenceCornerId: reference.id, distanceM: null }, lengthM: null, orientationDegrees: 90, thicknessM: null, heightM: null }
+    const internalWall: InternalWall = { id: id(), label: internalWallLabel(sequence), origin: { type: 'perimeter_wall', wallId: wall.id, referenceCornerId: reference.id, distanceM: null }, lengthM: null, orientationDegrees: 90, thicknessM: .15, heightM: null }
     onChange({ ...room, internalWalls: [...room.internalWalls, internalWall], internalWallCounter: sequence })
   }
   return <section className="internal-wall-editor" aria-label="Paredes internas">

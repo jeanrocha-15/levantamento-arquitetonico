@@ -1,3 +1,4 @@
+import CornerConnectionsPanel from './CornerConnectionsPanel'
 import { CompletionStats } from './TechnicalChecklistPanel'
 import { ElementPhotos } from './PhotoActions'
 import RoomObjectEditor from './RoomObjectEditor'
@@ -60,7 +61,7 @@ export default function RoomEditor({ room, survey, onChange, relatedRooms, proje
   const [message, setMessage] = useState('')
   const { perimeter: geometry, openings: openingLayout, internalWalls: internalWallLayout } = survey
   function addWall() {
-    const wall = { id: id(), label: wallLabel(nextWallIndex(room)), lengthM: null }
+    const wall = { id: id(), label: wallLabel(nextWallIndex(room)), lengthM: null, thickness: .15 }
     const walls = [...room.walls, wall]
     // Cantos novos nascem no modo Automático (calculado pela geometria; nunca gravado como medida).
     const activeCorners = getCorners(walls, room.corners)
@@ -88,8 +89,9 @@ export default function RoomEditor({ room, survey, onChange, relatedRooms, proje
     <div className="wall-actions"><button onClick={addWall}>＋ Adicionar parede</button><button className="primary" onClick={addWall}>Próxima parede →</button></div>
     <CornerEditor room={room} onChange={onChange} calculations={geometry.calculations} autoNotes={geometry.autoNotes}/>
     <DiagonalEditor room={room} onChange={onChange} checks={geometry.diagonalChecks}/>
+{onChangeProject && <CornerConnectionsPanel project={project} room={room} onChange={onChangeProject}/>}
 {room.walls.length > 0 && <SharedWalls room={room} rooms={relatedRooms} onChange={onChange}/>}<div className="mobile-geometry-status"><GeometryStatus geometry={geometry}/></div></>}
-    {activeSection==='openings' && <OpeningEditor key={focusIssue?.id ?? 'openings'} room={room} onChange={onChange} focusId={focusIssue?.elementId} checks={openingLayout.checks} relatedRooms={relatedRooms}/>}
+    {activeSection==='openings' && <OpeningEditor key={focusIssue?.id ?? 'openings'} room={room} onChange={onChange} focusId={focusIssue?.elementId} checks={openingLayout.checks} relatedRooms={relatedRooms} project={project} onProjectChange={onChangeProject}/>}
     {activeSection==='internal' && <><InternalWallEditor room={room} onChange={onChange} checks={internalWallLayout.checks}/><div className="internal-elements-guide"><h3>Outros elementos existentes</h3><p>Pilares, vigas aparentes, muretas, escadas, rampas, cobogós e grades podem ser identificados com nome, dimensões, posição e fotos no cadastro de objetos.</p><button onClick={()=>switchSection('objects')}>Cadastrar em Objetos →</button></div></>}
     {activeSection==='objects' && <RoomObjectEditor room={room} onChange={onChange} selectedId={selectedObjectId} onSelect={onSelectObject}/>}
     {activeSection==='photos' && (photosPanel ?? <p>Abra Fotos do projeto para registrar imagens.</p>)}

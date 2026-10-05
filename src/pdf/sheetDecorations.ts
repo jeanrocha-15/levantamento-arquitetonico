@@ -11,7 +11,7 @@ export function drawTitleBlock(page:PdfPage,{project,floor,title,option,date=new
  page.rect(MARGIN_MM,MARGIN_MM,page.widthMm-2*MARGIN_MM,page.heightMm-2*MARGIN_MM,{width:.35});page.line({x:MARGIN_MM,y:top},{x:page.widthMm-MARGIN_MM,y:top},{width:.35})
  wrapText(title,width,4).slice(0,2).forEach((line,i)=>page.text({x,y:top+7+i*4.5},line,4,{font:'bold'}))
  wrapText(`Projeto: ${project.name} · Pavimento: ${floor?.name??'—'}`,width,2.8).slice(0,2).forEach((line,i)=>page.text({x,y:top+18+i*3.4},line,2.8))
- page.text({x,y:top+27},`Data: ${date.toLocaleDateString('pt-BR')} · Escala 1:${option.scale} · Folha ${optionLabel(option).split(' 1:')[0]} · 01`,2.8)
+ page.text({x,y:top+27},`Data: ${date.toLocaleDateString('pt-BR')} · Escala 1:${option.scale} · Folha ${optionLabel(option).split(' 1:')[0]}`,2.8)
  const resp=responsible??project.generalChecks?.responsible?.value??'Não informado',bar=scaleBar(option.scale,Math.min(65,width/3)),barX=page.widthMm-MARGIN_MM-8-bar.widthMm,barY=top+37
  wrapText(`Responsável: ${resp}`,Math.max(60,width-bar.widthMm-14),2.8).slice(0,2).forEach((line,i)=>page.text({x,y:top+34+i*3.5},line,2.8))
  const stepMm=mmOnPaper(bar.stepM,option.scale);for(let i=0;i<3;i++)page.rect(barX+i*stepMm,barY,stepMm,2,{width:.18,fillGray:i%2?1:0})

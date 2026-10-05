@@ -1,3 +1,5 @@
+import { getCorners } from './corners'
+import { prepareOpeningConnections, ensureUniqueOpeningLabels, reconcileSpatialConnections, openingConnectionStatus } from './spatialConnections'
 import type { Project, Room, RoomRelationship } from './models'
 import { id } from './domain'
 
@@ -17,6 +19,7 @@ export function relationshipProblems(project: Project): RelationshipProblem[] {
   const add = (roomId: string, elementId: string | undefined, key: string, description: string) => problems.push({ roomId, elementId, key, description })
   for (const room of rooms) {
     for (const opening of room.openings) {
+      if(openingConnectionStatus(opening,rooms)==='Divergente') add(room.id,opening.id,`opening-dimensions-${opening.id}`,`${opening.label}: dimensões divergentes da contraparte; confira o vínculo antes de editar.`)
       if (!opening.connectedRoomId && !opening.connectedOpeningId) continue
       const target = opening.connectedRoomId && byId.get(opening.connectedRoomId)
       if (!target) add(room.id, opening.id, `opening-room-${opening.id}`, `${opening.label}: esta abertura apontava para um ambiente inexistente ou sem destino definido.`)
@@ -32,7 +35,7 @@ export function relationshipProblems(project: Project): RelationshipProblem[] {
   }
   for (const relation of project.relationships) {
     const source = byId.get(relation.sourceRoomId), target = byId.get(relation.targetRoomId)
-    const owns = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...room.corners].some(item => item.id === elementId)
+    const owns = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...getCorners(room.walls,room.corners)].some(item => item.id === elementId)
     const correctElementTypes = source && target && (relation.type === 'opening_connection'
       ? source.openings.some(item => item.id === relation.sourceElementId && item.type !== 'window') && (!relation.targetElementId || target.openings.some(item => item.id === relation.targetElementId && item.type !== 'window'))
       : relation.type === 'shared_wall' ? source.walls.some(item => item.id === relation.sourceElementId) && target.walls.some(item => item.id === relation.targetElementId) : true)
@@ -44,8 +47,9 @@ export function relationshipProblems(project: Project): RelationshipProblem[] {
   return problems
 }
 // Called after every project edit: references and relationship records stay consistent.
-// Connections are directional metadata; the destination is never modified to infer a reverse link.
-export function reconcileRelationships(project: Project): Project {
+// Physical openings are bilateral; original measures remain unchanged on migration.
+export function reconcileRelationships(project: Project, previous?: Project): Project {
+  project=ensureUniqueOpeningLabels(prepareOpeningConnections(project,previous))
   const problems = relationshipProblems(project)
   const rooms = projectRooms(project)
   const byId = new Map(rooms.map(room => [room.id, room]))
@@ -57,7 +61,7 @@ export function reconcileRelationships(project: Project): Project {
   function clean(room: Room, floorId: string, parentRoomId?: string): Room {
     const existingKeys = new Set(room.pendingItems.map(item => item.issueKey))
     // Keep a reviewable warning after clearing broken IDs, rather than silently losing the issue.
-    const relevant = problems.filter(item => item.roomId === room.id && (!item.key.startsWith('relation-') || !problems.some(other => !other.key.startsWith('relation-') && other.roomId === item.roomId && other.elementId === item.elementId)))
+    const relevant = problems.filter(item => !item.key.startsWith('opening-dimensions-') && item.roomId === room.id && (!item.key.startsWith('relation-') || !problems.some(other => !other.key.startsWith('relation-') && other.roomId === item.roomId && other.elementId === item.elementId)))
     const additions = relevant.filter(item => !existingKeys.has(item.key))
     const manualItems = room.pendingItems.filter(item => item.kind === 'technical' || !item.elementId || [room, ...room.walls, ...room.openings, ...room.internalWalls, ...room.corners, ...room.diagonals].some(element => element.id === item.elementId))
     const existingIds = new Set([room, ...room.walls, ...room.openings, ...room.internalWalls, ...room.corners, ...room.diagonals].map(item => item.id))
@@ -88,10 +92,10 @@ export function reconcileRelationships(project: Project): Project {
   const retained = project.relationships.filter(item => {
     if (item.type === 'opening_connection' || item.type === 'shared_wall') return false
     const source = byId.get(item.sourceRoomId), target = byId.get(item.targetRoomId)
-    const hasElement = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...room.corners].some(element => element.id === elementId)
+    const hasElement = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...getCorners(room.walls,room.corners)].some(element => element.id === elementId)
     return source && target && source.id !== target.id && hasElement(source, item.sourceElementId) && hasElement(target, item.targetElementId)
   })
   const validIds = new Set([...retained, ...generated].map(item => item.id))
   const clearDivision = (room: Room): Room => ({ ...room, internalWalls: room.internalWalls.map(wall => ({ ...wall, formalDivisionRelationshipId: wall.formalDivisionRelationshipId && validIds.has(wall.formalDivisionRelationshipId) ? wall.formalDivisionRelationshipId : undefined })), subrooms: room.subrooms.map(clearDivision) })
-  return { ...project, floors: floors.map(floor => ({ ...floor, rooms: floor.rooms.map(clearDivision) })), relationships: [...retained, ...generated] }
+  return reconcileSpatialConnections({ ...project, floors: floors.map(floor => ({ ...floor, rooms: floor.rooms.map(clearDivision) })), relationships: [...retained, ...generated] })
 }

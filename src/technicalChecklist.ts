@@ -12,7 +12,8 @@ export const COMPLETION_ITEMS=TECHNICAL_ITEMS.filter(item=>item.key!=='facade')
 export function technicalItemId(room: Room, key: string) { return `${room.id}:check:${key}` }
 export function technicalCheck(room: Room, project: Project, key: string): TechnicalCheck {
   const general=TECHNICAL_ITEMS.find(item=>item.key===key)?.general
-  return (general ? project.generalChecks?.[key] : room.technicalChecks?.[key]) ?? {status:'pending'}
+  const check=(general ? project.generalChecks?.[key] : room.technicalChecks?.[key]) ?? {status:'pending'}
+  return general && check.status!=='na' ? {...check,status:validGeneralValue(key,check.value)?'ok':'pending'} : check
 }
 export function itemKeyForEntity(room: Room, elementId?: string, field?: string): string {
   if(field?.startsWith('check:')) return field.slice(6)
@@ -28,3 +29,10 @@ export function itemKeyForEntity(room: Room, elementId?: string, field?: string)
 }
 export function checklistKeyFromId(room:Room,elementId?:string) { return elementId?.startsWith(`${room.id}:check:`)?elementId.slice(`${room.id}:check:`.length):undefined }
 export function isGeneralCheckField(field?:string) { return !!field?.startsWith('check:') && TECHNICAL_ITEMS.some(item=>item.general && item.key===field.slice(6)) }
+
+export function validGeneralValue(key:string,value?:string) {
+  if(!value?.trim())return false
+  if(key==='phone')return /^\+?[\d\s().-]+$/.test(value) && value.replace(/\D/g,'').length>=8 && value.replace(/\D/g,'').length<=15
+  if(key==='startTime'||key==='endTime')return /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
+  return true
+}

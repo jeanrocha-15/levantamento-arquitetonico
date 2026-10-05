@@ -6,7 +6,7 @@ import { pool, query } from './db.mjs'
 const MAX_BYTES = 15 * 1024 * 1024
 const KEEP_VERSIONS = 50
 // Igual a SCHEMA_VERSION de src/storage.ts (5 = checklist técnico).
-const MAX_SCHEMA_VERSION = 7
+const MAX_SCHEMA_VERSION = 8
 
 // Validação estrutural mínima; a validação completa do conteúdo é feita pelo cliente (readSnapshot).
 function validMeta(value) {

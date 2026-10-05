@@ -56,23 +56,25 @@ export class PdfPage {
   }
 }
 
-export function buildPdf(page: PdfPage, title: string): Uint8Array {
-  const content = page.ops.join('\n')
-  const objects = [
+export function buildPdf(input: PdfPage | PdfPage[], title: string): Uint8Array {
+  const pages=Array.isArray(input)?input:[input]
+  if(!pages.length)throw new Error('Não há folhas para exportar.')
+  const objects:string[]=[
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(page.widthMm * PT_PER_MM)} ${n(page.heightMm * PT_PER_MM)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
+    `<< /Type /Pages /Kids [${pages.map((_,i)=>`${5+i*2} 0 R`).join(' ')}] /Count ${pages.length} >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    `<< /Title (${encode(title).map(b => b === 0x28 || b === 0x29 || b === 0x5c ? `\\${String.fromCharCode(b)}` : b > 126 ? `\\${b.toString(8)}` : String.fromCharCode(b)).join('')}) /Producer (Campo - levantamento arquitetonico) >>`,
   ]
+  pages.forEach((page,index)=>{const content=page.ops.join('\n');objects.push(
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(page.widthMm * PT_PER_MM)} ${n(page.heightMm * PT_PER_MM)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6+index*2} 0 R >>`,
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+  )})
+  objects.push(`<< /Title (${encode(title).map(b => b === 0x28 || b === 0x29 || b === 0x5c ? `\\${String.fromCharCode(b)}` : b > 126 ? `\\${b.toString(8)}` : String.fromCharCode(b)).join('')}) /Producer (Campo - levantamento arquitetonico) >>`)
   let out = '%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n'
   const offsets: number[] = []
-  objects.forEach((body, index) => { offsets.push(out.length); out += `${index + 1} 0 obj\n${body}\nendobj\n` })
-  const xref = out.length
-  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}`
-  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info 7 0 R >>\nstartxref\n${xref}\n%%EOF\n`
-  // Todo o conteúdo é ASCII/Latin-1 (1 byte por caractere), então os offsets acima valem em bytes.
-  return Uint8Array.from(out, char => char.charCodeAt(0) & 0xff)
+  objects.forEach((body,index)=>{offsets.push(out.length);out+=`${index+1} 0 obj\n${body}\nendobj\n`})
+  const xref=out.length
+  out+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n${offsets.map(offset=>`${String(offset).padStart(10,'0')} 00000 n \n`).join('')}`
+  out+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R /Info ${objects.length} 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+  return Uint8Array.from(out,char=>char.charCodeAt(0)&0xff)
 }

@@ -1,3 +1,5 @@
+import { scopedProject, exportScopeNames } from './exportScope'
+import type { ExportScope } from './exportScope'
 import { useRef, useState } from 'react'
 import type { Floor, Project, Room } from './models'
 import type { WorkspaceData } from './storage'
@@ -8,6 +10,7 @@ import { createBackup, downloadText, importProjects, parseBackup, projectCsv } f
 
 // Exportações (relatório, planilha, backup) e importação de backup.
 export default function ExportPanel({ workspace, project, floor, room, onImport, onReport }: { workspace: WorkspaceData; project: Project; floor?: Floor; room?: Room; onImport: (data: WorkspaceData) => void; onReport: () => void }) {
+  const [scope,setScope]=useState<ExportScope>(room?'room':'project')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string }>()
   const input = useRef<HTMLInputElement>(null)
   const run = (action: () => void) => { try { action() } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Não foi possível exportar.' }) } }
@@ -23,10 +26,10 @@ export default function ExportPanel({ workspace, project, floor, room, onImport,
     finally { if (input.current) input.current.value = '' }
   }
   return <details className="export-panel"><summary>⇩ Exportar e importar</summary>
-    <div className="export-actions">
+    <label>Escopo do JSON / backup<select value={scope} onChange={e=>setScope(e.target.value as ExportScope)}>{Object.entries(exportScopeNames).map(([value,label])=><option key={value} value={value} disabled={value==='room' && !room || ['floor','plan'].includes(value) && !floor}>{label}</option>)}</select></label><div className="export-actions">
       <button onClick={onReport}>Relatório (imprimir / PDF)</button>
       <button onClick={() => run(() => { const file = projectCsv(project); downloadText(file.fileName, file.text, 'text/csv;charset=utf-8'); setMessage({ type: 'ok', text: `Planilha ${file.fileName} gerada.` }) })}>Planilha do projeto (CSV)</button>
-      <button onClick={() => run(() => { const file = createBackup(workspace, [project.id]); downloadText(file.fileName, file.text, 'application/json'); setMessage({ type: 'ok', text: `Backup ${file.fileName} gerado.` }) })}>Backup do projeto (JSON)</button>
+      <button onClick={() => run(() => { const file = createBackup({...workspace,projects:[scopedProject(project,scope,floor?.id,room?.id)]}, [project.id]); downloadText(file.fileName, file.text, 'application/json'); setMessage({ type: 'ok', text: `Backup ${file.fileName} gerado.` }) })}>Exportar {exportScopeNames[scope]} (JSON)</button>
       <button onClick={() => run(() => { const file = createBackup(workspace); downloadText(file.fileName, file.text, 'application/json'); setMessage({ type: 'ok', text: `Backup ${file.fileName} gerado.` }) })}>Backup de todos os projetos</button>
       <label className="import-button">Importar backup…<input ref={input} type="file" accept="application/json,.json" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file) }}/></label>
     </div>

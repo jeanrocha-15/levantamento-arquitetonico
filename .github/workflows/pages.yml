@@ -2,6 +2,11 @@ name: Publicar aplicação no GitHub Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Executar testes gerais antes da publicação
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -23,6 +28,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+        if: ${{ inputs.run_tests }}
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
