@@ -2,6 +2,16 @@
 
 Estrutura inicial em React, TypeScript e Vite. Interface em português, com projetos, pavimentos, ambientes e subambientes independentes.
 
+## Etapa 19 — organização por categorias
+
+O ambiente agora abre em Resumo, com acesso rápido a Perímetro, Aberturas, Elementos internos, Objetos, Fotos, Checklist, Pendências e Relatório. O botão de próximo módulo percorre o fluxo e retorna ao Resumo. As aberturas podem ser filtradas por tipo e parede; fotos possuem filtros rápidos e a pesquisa existente. Atalhos do croqui e das pendências abrem a categoria do elemento.
+
+O topo persistente reúne projeto/ambiente, salvamento, desfazer/refazer, ações globais e tema Claro/Escuro/Sistema. A identidade usa azul-marinho, amarelo nos detalhes e superfícies escuras sem preto absoluto. O croqui permanece à direita no desktop e como miniatura expansível no celular; controles completos aparecem ao expandir.
+
+As medidas, IDs, relações, fotos, backups, PDF, autosave e funcionamento local foram preservados. Outros elementos internos continuam usando o cadastro genérico de objetos existente; nenhum novo modelo técnico foi adicionado. Observações gerais opcionais são compatíveis com o schema 4.
+
+Componentes principais: WorkspaceHeader, EnvironmentTabs, EnvironmentIssuesPanel e RoomEditor; navegação centralizada em environmentNavigation.ts e estilos em theme.css/workspace.css.
+
 ## GitHub e publicação
 
 Compatibilização em 05/10/2026: as propostas #1, #2 e #3 foram integradas preservando seu histórico e os recursos locais da etapa 14. Os conflitos em dependências, tema, testes, croqui, formulários, relatórios e exportações foram resolvidos mantendo as implementações mais completas. `npm test` passou nas suítes locais e nos 67 testes do Vitest; `npm run build` passou. O teste de integração do servidor depende de `TEST_DATABASE_URL` e não foi executado nesta validação. No GitHub Pages, o aplicativo continua local, sem ativar login ou sincronização com servidor.

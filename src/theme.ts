@@ -10,5 +10,5 @@ export function resolvedTheme(theme: ThemePreference, prefersDark = typeof match
 }
 export function applyTheme(theme: ThemePreference, root: HTMLElement = document.documentElement) {
   root.dataset.theme = theme
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme(theme) === 'dark' ? '#10201c' : '#183d36')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme(theme) === 'dark' ? '#121821' : '#0F2747')
 }

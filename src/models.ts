@@ -45,7 +45,7 @@ export interface Photo {
   linkedEntityType?: PhotoEntityType; linkedEntityId?: string;
   tags: string[]; note?: string; fileId: string; mimeType: string; size: number
 }
-export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number }
+export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; notes?: string }
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
 export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }

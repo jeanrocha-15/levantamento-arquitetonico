@@ -10,7 +10,7 @@ export function ManualMarkers({ room, elementId }: { room: Room; elementId: stri
   const items = room.pendingItems.filter(item => !item.resolved && item.elementId === elementId)
   return items.length ? <div className="manual-markers">{items.map(item => <span key={item.id} title={item.note}>{item.kind === 'technical' ? '⚠ Pendência técnica' : `⚑ ${item.reason === 'doubtful' ? 'Medida duvidosa' : 'Conferir no local'}`}{item.field ? ` · ${measurementTargets(room).find(target => target.elementId === elementId && target.field === item.field)?.label.split(' — ')[1] ?? item.field}` : ''}{item.note && <small>{item.note}</small>}</span>)}</div> : null
 }
-function IssueList({ issues, onNavigate }: { issues: ChecklistIssue[]; onNavigate: (issue: ChecklistIssue) => void }) {
+export function IssueList({ issues, onNavigate }: { issues: ChecklistIssue[]; onNavigate: (issue: ChecklistIssue) => void }) {
   return <ul className="issue-list">{issues.map(issue => <li key={issue.id}><button onClick={() => onNavigate(issue)}><span>{issue.kind === 'manual' ? '⚑' : '⚠'}</span><span>{issue.description}{issue.note && <small>{issue.note}</small>}<small>{issue.kind === 'technical' ? 'Pendência técnica' : issue.kind === 'manual' ? 'Marcação manual' : 'Verificação automática'}</small></span><span aria-hidden="true">→</span></button></li>)}</ul>
 }
 export function RoomChecklistPanel({ room, project, survey, onChange, onNavigate }: { room: Room; project: Project; survey?: RoomGeometry; onChange: (room: Room) => void; onNavigate: (issue: ChecklistIssue) => void }) {

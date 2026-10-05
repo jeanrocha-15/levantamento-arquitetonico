@@ -8,9 +8,13 @@ import type { OpeningCheck } from './openings'
 import { OpeningConnection } from './RoomConnections'
 import OpeningElevation from './OpeningElevation'
 import type { RoomOption } from './RoomConnections'
+import { useEffect, useState } from 'react'
 
-export default function OpeningEditor({ room, onChange, checks, relatedRooms = [] }: { room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[] }) {
+export default function OpeningEditor({ room, onChange, checks, relatedRooms = [], focusId }: { room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[]; focusId?: string }) {
   const { unit, format } = useMeasurements()
+  const [typeFilter,setTypeFilter]=useState('')
+  const [wallFilter,setWallFilter]=useState('')
+  useEffect(()=>{if(focusId){setTypeFilter('');setWallFilter('')}},[focusId])
   const canAdd = room.walls.length >= 2
   function addOpening(type: OpeningType) {
     const wall = room.walls[0]
@@ -18,13 +22,15 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
     const sequence = room.openingCounters[type] + 1
     const opening: Opening = { id: id(), label: openingLabel(type, sequence), type, wallId: wall.id, referenceCornerId: reference.id, offsetM: null, widthM: null, heightM: null, sillHeightM: null, ...(type === 'door' ? { doorKind: 'hinged' as const } : {}) }
     onChange({ ...room, openings: [...room.openings, opening], openingCounters: { ...room.openingCounters, [type]: sequence } })
+    setTypeFilter(type); setWallFilter('')
   }
   return <section className="opening-editor" aria-label="Aberturas nas paredes">
     <h3>Portas, janelas e vãos</h3>
     <p className="angle-help">Medidas em {unit}. A distância parte do canto escolhido até a borda mais próxima da abertura. O croqui acompanha a unidade do projeto.</p>
     <div className="opening-actions">{(['door', 'window', 'gap'] as const).map(type => <button key={type} disabled={!canAdd} onClick={() => addOpening(type)}>＋ {openingNames[type]}</button>)}</div>
+    <div className="category-filters"><label>Mostrar tipo<select value={typeFilter} onChange={event=>setTypeFilter(event.target.value)}><option value="">Todos os tipos</option>{Object.entries(openingNames).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Mostrar parede<select value={wallFilter} onChange={event=>setWallFilter(event.target.value)}><option value="">Todas as paredes</option>{room.walls.map(wall=><option key={wall.id} value={wall.id}>Parede {wall.label}</option>)}</select></label></div>
     {!canAdd && <p className="angle-help">Cadastre pelo menos duas paredes para identificar os cantos de referência.</p>}
-    {room.openings.map(opening => {
+    {room.openings.filter(opening=>(!typeFilter || opening.type===typeFilter) && (!wallFilter || opening.wallId===wallFilter)).map(opening => {
       const references = getWallReferences(room.walls, room.corners, opening.wallId)
       const reference = references.find(item => item.id === opening.referenceCornerId)
       const wall = room.walls.find(item => item.id === opening.wallId)

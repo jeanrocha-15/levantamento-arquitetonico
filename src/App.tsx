@@ -1,4 +1,6 @@
 import PhotoPanel from './PhotoPanel'
+import WorkspaceHeader from './WorkspaceHeader'
+import type { EnvironmentSection } from './environmentNavigation'
 import { PhotoActionsContext } from './PhotoActions'
 import type { PhotoRequest } from './PhotoActions'
 import type { Photo, PhotoEntityType } from './models'
@@ -11,7 +13,7 @@ import UserMenu from './UserMenu'
 import { InlineName, ItemMenu } from './ItemMenu'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { UndoHistory } from './undo'
-import { applyTheme, isTheme, loadTheme, saveTheme, themeNames } from './theme'
+import { applyTheme, isTheme, loadTheme, saveTheme } from './theme'
 import type { ThemePreference } from './theme'
 import type { Project, Room } from './models'
 import { createRoom, findRoom, id, updateRoom } from './domain'
@@ -45,17 +47,29 @@ export default function App() {
   // para que desfazer nunca deixe uma foto sem arquivo nem descarte um arquivo ainda vinculado.
   const history = useRef(new UndoHistory<Project[]>())
   const [undoSize, setUndoSize] = useState(0)
+  const [redoSize,setRedoSize]=useState(0)
+  const [roomSection,setRoomSection]=useState<{roomId:string;section:EnvironmentSection}>()
   function setProjects(action: Project[] | ((projects: Project[]) => Project[])) {
-    history.current.record(workspaceRef.current.projects); setUndoSize(history.current.size)
+    history.current.record(workspaceRef.current.projects); setUndoSize(history.current.size); setRedoSize(0)
     setWorkspace(current => {
     const next = typeof action === 'function' ? action(current.projects) : action
     const before = photoFileIds(current.projects), after = photoFileIds(next)
     before.forEach(fileId => { if (!after.has(fileId)) queuePhotoDeletion(fileId) })
-    if (before.size !== after.size || [...after].some(fileId => !before.has(fileId))) { history.current.clear(); queueMicrotask(() => setUndoSize(0)) }
+    if (before.size !== after.size || [...after].some(fileId => !before.has(fileId))) { history.current.clear(); queueMicrotask(() => {setUndoSize(0);setRedoSize(0)}) }
     return { ...current, projects: next }
   }) }
   function undo() {
-    const previous = history.current.undo(); setUndoSize(history.current.size)
+    const previous = history.current.undo(workspaceRef.current.projects); setUndoSize(history.current.size); setRedoSize(history.current.redoSize)
+    if (!previous) return
+    setWorkspace(current => {
+      const project = previous.find(item => item.id === current.projectId) ?? previous[0]
+      const floor = project?.floors.find(item => item.id === current.floorId) ?? project?.floors[0]
+      const roomId = floor && findRoom(floor.rooms, current.roomId) ? current.roomId : floor?.rooms[0]?.id ?? ''
+      return { ...current, projects: previous, projectId: project?.id ?? current.projectId, floorId: floor?.id ?? '', roomId }
+    })
+  }
+  function redo() {
+    const previous = history.current.redo(workspaceRef.current.projects); setUndoSize(history.current.size); setRedoSize(history.current.redoSize)
     if (!previous) return
     setWorkspace(current => {
       const project = previous.find(item => item.id === current.projectId) ?? previous[0]
@@ -65,10 +79,14 @@ export default function App() {
     })
   }
   const undoRef = useRef(undo); undoRef.current = undo
+  const redoRef=useRef(redo);redoRef.current=redo
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && !target?.closest('input,textarea,select,[contenteditable=true]')) { event.preventDefault(); undoRef.current() }
+      if ((event.ctrlKey || event.metaKey) && !target?.closest('input,textarea,select,[contenteditable=true]')) {
+        if(event.key.toLowerCase()==='z'){event.preventDefault();event.shiftKey?redoRef.current():undoRef.current()}
+        else if(event.key.toLowerCase()==='y'){event.preventDefault();redoRef.current()}
+      }
     }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
   }, [])
@@ -98,10 +116,15 @@ export default function App() {
   const project = projects.find(p => p.id === projectId)!
   const floor = project.floors.find(f => f.id === floorId)
   const room = floor && findRoom(floor.rooms, roomId)
+  const activeSection:EnvironmentSection=roomSection?.roomId===room?.id ? roomSection!.section : 'summary'
+  function changeSection(section:EnvironmentSection){if(room) setRoomSection({roomId:room.id,section});setShowPhotos(false);setShowProjectChecklist(false);setShowReport(false);setNavigationOpen(false)}
+  function showGlobalPhotos(){setShowPhotos(value=>!value);setPhotoRequest(undefined);setShowProjectChecklist(false);setShowReport(false);setNavigationOpen(false)}
+  function showGlobalIssues(){setShowProjectChecklist(value=>!value);setShowPhotos(false);setShowReport(false);setNavigationOpen(false)}
+  function returnToRoom(){setShowPhotos(false);setShowProjectChecklist(false);setShowReport(false)}
   const survey = useMemo(() => room ? buildRoomGeometry(room) : undefined, [room?.walls, room?.corners, room?.diagonals, room?.openings, room?.internalWalls])
   const selectedObjectId = objectSelection?.roomId === room?.id ? objectSelection?.objectId : undefined
-  function selectObject(objectId: string) { if (room) { setObjectSelection({ roomId: room.id, objectId }); setFocusIssue(undefined) } }
-  function openPhotos(targetRoomId: string, type?: PhotoEntityType, entityId?: string) { setShowPhotos(true); setPhotoRequest(current => ({ roomId: targetRoomId, type, entityId, token: (current?.token ?? 0) + 1 })) }
+  function selectObject(objectId: string) { if (room) { returnToRoom(); setRoomSection({roomId:room.id,section:'objects'}); setNavigationOpen(false); setObjectSelection({ roomId: room.id, objectId }); setFocusIssue(undefined) } }
+  function openPhotos(targetRoomId: string, type?: PhotoEntityType, entityId?: string) { setShowPhotos(false);setShowProjectChecklist(false);setShowReport(false);setRoomSection({roomId:targetRoomId,section:'photos'}); setPhotoRequest(current => ({ roomId: targetRoomId, type, entityId, token: (current?.token ?? 0) + 1 })) }
   function addPhoto(photo: Photo) {
     if (!workspaceRef.current.projects.some(project => project.floors.some(floor => findRoom(floor.rooms,photo.roomId)))) throw new Error('O ambiente foi excluído antes de registrar a foto.')
     setProjects(items => items.map(p => ({ ...p, floors: p.floors.map(f => ({ ...f, rooms: updateRoom(f.rooms,photo.roomId,r => cleanRoomPhotoLinks({ ...r, photos: [...r.photos ?? [], photo] })) })) })))
@@ -112,7 +135,7 @@ export default function App() {
   function navigateIssue(issue: ChecklistIssue) {
     const targetFloor = project.floors.find(item => findRoom(item.rooms, issue.roomId))
     if (!targetFloor) return
-    setFloorId(targetFloor.id); setRoomId(issue.roomId); setShowProjectChecklist(false); setFocusIssue({ ...issue })
+    setFloorId(targetFloor.id); setRoomId(issue.roomId); returnToRoom(); setFocusIssue({ ...issue })
   }
   const relatedRooms: RoomOption[] = project.floors.flatMap(f => {
     function options(rooms: Room[], path: string): RoomOption[] { return rooms.flatMap(r => [{ room: r, path: `${path} / ${r.name || 'Sem nome'}` }, ...options(r.subrooms, `${path} / ${r.name || 'Sem nome'}`)]) }
@@ -149,15 +172,14 @@ export default function App() {
 
   function changeRoom(next: Room) { changeProject(p => ({ ...p, floors: p.floors.map(f => f.id === floorId ? { ...f, rooms: updateRoom(f.rooms, next.id, () => next) } : f) })) }
   if (!ready) return <main className="loading-workspace"><h1>Campo</h1>{loadError ? <><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Tentar novamente</button></> : <p role="status">Abrindo seus projetos…</p>}</main>
-  return <PhotoActionsContext value={openPhotos}><UnitContext value={project.measurementUnit ?? 'm'}><header className="app-header"><a className="brand" href="./"><span className="brand-icon">⌑</span>campo<span className="brand-sub">LEVANTAMENTO ARQUITETÔNICO</span></a><div className="save-indicator"><button className="undo-button" onClick={undo} disabled={!undoSize} title="Desfazer a última alteração (Ctrl+Z)" aria-label={`Desfazer${undoSize ? ` (${undoSize} passo${undoSize > 1 ? 's' : ''} disponíve${undoSize > 1 ? 'is' : 'l'})` : ''}`}>↶ Desfazer</button><span className="session" role="status" aria-live="polite">{status === 'saving' ? 'Salvando...' : status === 'saved' ? '✓ Salvo localmente' : 'Não foi possível salvar'}</span>{status === 'error' && <button onClick={retrySave}>Tentar salvar novamente</button>}{syncStatus !== 'off' && <span className={`sync-status sync-${syncStatus === 'synced' ? 'synced' : 'pending'}`} title={syncMessage || syncStatusLong(syncStatus, syncPending)} role="status" aria-live="polite"><span aria-hidden="true">☁ </span>{syncStatus === 'synced' && photoPending > 0 ? `Sincronizando... (${photoPending} foto${photoPending > 1 ? 's' : ''})` : syncStatusShort[syncStatus]}{syncStatus !== 'synced' && syncPending > 0 ? ` (${syncPending})` : ''}<span className="sr-only">. {syncStatusLong(syncStatus, syncPending)}</span></span>}{syncStatus === 'auth' && <a className="sync-login" href="entrar">Entrar</a>}{syncStatus === 'error' && <button onClick={retrySync}>Tentar sincronizar</button>}</div><UserMenu/></header>
+  return <PhotoActionsContext value={openPhotos}><UnitContext value={project.measurementUnit ?? 'm'}><WorkspaceHeader projectName={project.name} roomName={room ? `${room.displayId ?? ''} — ${room.name || 'Sem nome'}` : 'Organize seu levantamento'} theme={theme} onThemeChange={value=>{if(isTheme(value)){setTheme(value);saveTheme(value);applyTheme(value)}}} onUndo={undo} onRedo={redo} undoCount={undoSize} redoCount={redoSize} onPhotos={showGlobalPhotos} onIssues={showGlobalIssues}><div className="save-indicator"><span className="session" role="status" aria-live="polite">{status === 'saving' ? 'Salvando...' : status === 'saved' ? '✓ Salvo localmente' : 'Não foi possível salvar'}</span>{status === 'error' && <button onClick={retrySave}>Tentar salvar novamente</button>}{syncStatus !== 'off' && <span className={`sync-status sync-${syncStatus === 'synced' ? 'synced' : 'pending'}`} title={syncMessage || syncStatusLong(syncStatus, syncPending)} role="status" aria-live="polite"><span aria-hidden="true">☁ </span>{syncStatus === 'synced' && photoPending > 0 ? `Sincronizando... (${photoPending} foto${photoPending > 1 ? 's' : ''})` : syncStatusShort[syncStatus]}{syncStatus !== 'synced' && syncPending > 0 ? ` (${syncPending})` : ''}<span className="sr-only">. {syncStatusLong(syncStatus, syncPending)}</span></span>}{syncStatus === 'auth' && <a className="sync-login" href="entrar">Entrar</a>}{syncStatus === 'error' && <button onClick={retrySync}>Tentar sincronizar</button>}</div><UserMenu/></WorkspaceHeader>
     {saveError && <div className="save-error" role="alert">{saveError} Os dados continuam abertos para edição. Tente salvar novamente antes de fechar.</div>}
     <button className="mobile-navigation" aria-expanded={navigationOpen} aria-controls="project-navigation" onClick={() => setNavigationOpen(value => !value)}>{navigationOpen ? 'Recolher projeto' : '☰ Projeto e ambientes'}</button><div className={`app-shell ${navigationOpen ? 'nav-open' : ''}`}><nav id="project-navigation" className={`sidebar ${navigationOpen ? 'navigation-open' : ''}`} aria-label="Organização do levantamento"><div className="sidebar-title"><span className="eyebrow">SEU LEVANTAMENTO</span><button onClick={addProject} aria-label="Criar projeto" title="Criar projeto">＋</button></div>
       <div className="field-label" id="project-label">Projeto</div>
       <div className="item-row">{renaming === projectId ? <InlineName value={project.name} label="Nome do projeto" onCommit={name => changeProject(p => ({ ...p, name }))} onDone={() => setRenaming(undefined)}/> : <select aria-labelledby="project-label" value={projectId} onChange={e => { const next = projects.find(p => p.id === e.target.value)!; setProjectId(next.id); setFloorId(next.floors[0]?.id || ''); setRoomId(next.floors[0]?.rooms[0]?.id || '') }}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}<ItemMenu label={`Projeto ${project.name}`} actions={[{ label: 'Renomear projeto', onSelect: () => setRenaming(projectId) }, { label: 'Excluir projeto', danger: true, onSelect: deleteProject }]}/></div>
       <label>Unidade de medida<select value={project.measurementUnit ?? 'm'} onChange={event => { const unit = event.target.value; if (isMeasurementUnit(unit)) changeProject(p => ({ ...p, measurementUnit: unit })) }}>{Object.entries(unitNames).map(([unit, name]) => <option key={unit} value={unit}>{name} ({unit})</option>)}</select></label>
-      <label>Tema<select value={theme} onChange={event => { const value = event.target.value; if (isTheme(value)) { setTheme(value); saveTheme(value); applyTheme(value) } }}>{(Object.keys(themeNames) as ThemePreference[]).map(value => <option key={value} value={value}>{themeNames[value]}</option>)}</select></label>
       <div className="nav-heading"><h3>Pavimentos</h3><button onClick={addFloor} aria-label="Adicionar pavimento">＋</button></div>
-      {project.floors.map(f => <div key={f.id} className="floor-block"><div className="item-row">{renaming === f.id ? <InlineName value={f.name} label="Nome do pavimento" onCommit={name => changeProject(p => ({ ...p, floors: p.floors.map(item => item.id === f.id ? { ...item, name } : item) }))} onDone={() => setRenaming(undefined)}/> : <button className={`floor-button ${floorId === f.id ? 'active' : ''}`} onClick={() => { setFloorId(f.id); setRoomId(f.rooms[0]?.id || '') }}>▱ {f.name || 'Sem nome'}</button>}<ItemMenu label={`Pavimento ${f.name || 'sem nome'}`} actions={[{ label: 'Renomear pavimento', onSelect: () => setRenaming(f.id) }, { label: 'Excluir pavimento', danger: true, onSelect: () => deleteFloor(f.id) }]}/></div>{floorId === f.id && <><RoomTree rooms={f.rooms} selected={roomId} onSelect={value => { setRoomId(value); setNavigationOpen(false) }} onAdd={addRoom} onDelete={deleteRoom}/><button className="new-room" onClick={() => addRoom()}>＋ Novo ambiente</button></>}</div>)}
-      {!project.floors.length && <p className="muted">Adicione um pavimento para começar.</p>}<button onClick={() => { setShowPhotos(value => !value); setPhotoRequest(undefined) }} aria-expanded={showPhotos}>📷 FOTOS</button><button onClick={() => setShowProjectChecklist(value => !value)} aria-expanded={showProjectChecklist}>⚑ Pendências do projeto</button><ExportPanel workspace={workspace} project={project} floor={floor} room={room} onImport={data => { history.current.clear(); setUndoSize(0); setWorkspace(data); setShowReport(false); setNavigationOpen(false) }} onReport={() => { setShowReport(true); setNavigationOpen(false); window.scrollTo(0, 0) }}/><div className="sidebar-foot">Projeto → Pavimento → Ambiente → Subambiente</div>
-    </nav>{showReport ? <main className="report-main"><Report project={project} onClose={() => setShowReport(false)}/></main> : <main><SyncConflicts conflicts={conflicts} projects={projects} onResolve={resolveConflict} onDismiss={dismissConflict}/><div className="page-heading"><p className="breadcrumb">{project.name} <span>/</span> {floor?.name || 'Sem pavimento'}</p><h1>{room?.displayId && <small className="room-heading-id">{room.displayId} — </small>}{room?.name || 'Organize seu levantamento'}</h1><p>Meça, registre e mantenha as informações do ambiente em um só lugar.</p></div><div className="workspace"><div className="editor-column">{showPhotos && <PhotoPanel key={project.id} project={project} request={photoRequest} onAdd={addPhoto} onUpdate={updatePhoto} onDelete={deletePhoto} onNavigate={navigatePhotoRoom}/>} {showProjectChecklist && <ProjectChecklistPanel project={project} onNavigate={navigateIssue}/>} {room ? <RoomEditor selectedObjectId={selectedObjectId} onSelectObject={selectObject} key={room.id} room={room} survey={survey!} onChange={changeRoom} relatedRooms={relatedRooms} project={project} onNavigate={navigateIssue} focusIssue={focusIssue?.roomId === room.id ? focusIssue : undefined}/> : <section className="editor empty"><h2>{floor ? 'Crie seu primeiro ambiente' : 'Crie um pavimento'}</h2><p>Cada ambiente terá suas próprias medidas e seu próprio croqui.</p><button className="primary" onClick={() => floor ? addRoom() : addFloor()}>{floor ? '＋ Novo ambiente' : '＋ Novo pavimento'}</button></section>}</div><Sketch selectedObjectId={selectedObjectId} onSelectObject={selectObject} key={'sketch-' + (room?.id ?? 'empty')} room={room} survey={survey} onLabelScaleChange={room ? scale => changeRoom({ ...room, sketchLabelScale: scale }) : undefined} onLabelOffsetsChange={room ? offsets => changeRoom({ ...room, labelOffsets: offsets }) : undefined} onObjectsChange={room ? objects => changeRoom({ ...room, objects }) : undefined} onFocusField={room ? (elementId, field) => setFocusIssue({ id: `sketch:${elementId}:${Date.now()}`, roomId: room.id, elementId, field, description: '', kind: 'automatic' }) : undefined} focusElementId={focusIssue?.roomId === room?.id ? focusIssue?.elementId : undefined}/></div></main>}</div></UnitContext></PhotoActionsContext>
+      {project.floors.map(f => <div key={f.id} className="floor-block"><div className="item-row">{renaming === f.id ? <InlineName value={f.name} label="Nome do pavimento" onCommit={name => changeProject(p => ({ ...p, floors: p.floors.map(item => item.id === f.id ? { ...item, name } : item) }))} onDone={() => setRenaming(undefined)}/> : <button className={`floor-button ${floorId === f.id ? 'active' : ''}`} onClick={() => { setFloorId(f.id); setRoomId(f.rooms[0]?.id || '') }}>▱ {f.name || 'Sem nome'}</button>}<ItemMenu label={`Pavimento ${f.name || 'sem nome'}`} actions={[{ label: 'Renomear pavimento', onSelect: () => setRenaming(f.id) }, { label: 'Excluir pavimento', danger: true, onSelect: () => deleteFloor(f.id) }]}/></div>{floorId === f.id && <><RoomTree rooms={f.rooms} selected={roomId} onSelect={value => { setRoomId(value); returnToRoom(); setNavigationOpen(false) }} onAdd={addRoom} onDelete={deleteRoom}/><button className="new-room" onClick={() => addRoom()}>＋ Novo ambiente</button></>}</div>)}
+      {!project.floors.length && <p className="muted">Adicione um pavimento para começar.</p>}<button onClick={showGlobalPhotos} aria-expanded={showPhotos}>📷 FOTOS</button><button onClick={showGlobalIssues} aria-expanded={showProjectChecklist}>⚑ Pendências do projeto</button><ExportPanel workspace={workspace} project={project} floor={floor} room={room} onImport={data => { history.current.clear(); setUndoSize(0); setRedoSize(0); setWorkspace(data); setShowReport(false); setNavigationOpen(false) }} onReport={() => { setShowReport(true); setNavigationOpen(false); window.scrollTo(0, 0) }}/><div className="sidebar-foot">Projeto → Pavimento → Ambiente → Subambiente</div>
+    </nav><main><SyncConflicts conflicts={conflicts} projects={projects} onResolve={resolveConflict} onDismiss={dismissConflict}/><div className="page-heading"><p className="breadcrumb">{project.name} <span>/</span> {floor?.name || 'Sem pavimento'}</p><h1>{room?.displayId && <small className="room-heading-id">{room.displayId} — </small>}{room?.name || 'Organize seu levantamento'}</h1><p>Meça, registre e mantenha as informações do ambiente em um só lugar.</p></div><div className="workspace"><div className="editor-column">{(showPhotos || showProjectChecklist || showReport) && <button className="back-to-environment" onClick={returnToRoom}>← Voltar ao ambiente</button>}{showReport ? <Report project={project} onClose={returnToRoom}/> : showPhotos ? <PhotoPanel key={project.id} project={project} request={photoRequest} onAdd={addPhoto} onUpdate={updatePhoto} onDelete={deletePhoto} onNavigate={navigatePhotoRoom}/> : showProjectChecklist ? <ProjectChecklistPanel project={project} onNavigate={navigateIssue}/> : room ? <RoomEditor section={activeSection} onSectionChange={changeSection} onUnitChange={unit=>changeProject(p=>({...p,measurementUnit:unit}))} photosPanel={<PhotoPanel key={project.id+room.id} initialRoomId={room.id} project={project} request={photoRequest?.roomId===room.id?photoRequest:undefined} onAdd={addPhoto} onUpdate={updatePhoto} onDelete={deletePhoto} onNavigate={navigatePhotoRoom}/>} reportPanel={<ExportPanel workspace={workspace} project={project} floor={floor} room={room} onImport={data=>{history.current.clear();setUndoSize(0);setRedoSize(0);setWorkspace(data);returnToRoom()}} onReport={()=>setShowReport(true)}/>} selectedObjectId={selectedObjectId} onSelectObject={selectObject} key={room.id} room={room} survey={survey!} onChange={changeRoom} relatedRooms={relatedRooms} project={project} onNavigate={navigateIssue} focusIssue={focusIssue?.roomId === room.id ? focusIssue : undefined}/> : <section className="editor empty"><h2>{floor ? 'Crie seu primeiro ambiente' : 'Crie um pavimento'}</h2><p>Cada ambiente terá suas próprias medidas e seu próprio croqui.</p><button className="primary" onClick={() => floor ? addRoom() : addFloor()}>{floor ? '＋ Novo ambiente' : '＋ Novo pavimento'}</button></section>}</div><Sketch selectedObjectId={selectedObjectId} onSelectObject={selectObject} key={'sketch-' + (room?.id ?? 'empty')} room={room} survey={survey} onLabelScaleChange={room ? scale => changeRoom({ ...room, sketchLabelScale: scale }) : undefined} onLabelOffsetsChange={room ? offsets => changeRoom({ ...room, labelOffsets: offsets }) : undefined} onObjectsChange={room ? objects => changeRoom({ ...room, objects }) : undefined} onFocusField={room ? (elementId, field) => navigateIssue({ id: `sketch:${elementId}:${Date.now()}`, roomId: room.id, elementId, field, description: '', kind: 'automatic' }) : undefined} focusElementId={focusIssue?.roomId === room?.id ? focusIssue?.elementId : undefined}/></div></main></div></UnitContext></PhotoActionsContext>
 }
