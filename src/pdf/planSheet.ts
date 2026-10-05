@@ -1,3 +1,4 @@
+import { duplicatePlanOpenings } from '../planOpeningVisibility'
 import { objectLayerVisible } from './sheetDecorations'
 import { objectDimensionsLabel } from '../roomObjects'
 import { roomLabelPosition } from './labelPosition'
@@ -18,12 +19,13 @@ export function drawPlanSheet({project,floor,option,layers=defaultPdfLayers,resp
  const extent=planExtent(project,floor.id,layout?defaultPdfLayers:layers);if(!extent.placements.length)throw new Error('Insira pelo menos um ambiente na Planta Geral deste pavimento.')
  const problem=fitMessage(extent,option);if(problem && !preview)throw new Error(problem.replace('O ambiente','A Planta Geral'))
  const paper=paperSize(option),area=drawingArea(option),page=new PdfPage(paper.width,paper.height),k=1000/option.scale,origin={x:area.x+(area.width-extent.width*k)/2,y:area.y+(area.height-extent.height*k)/2},toPaper=(p:Pt)=>({x:origin.x+(p.x-extent.minX)*k,y:origin.y+(p.y-extent.minY)*k}),unit=project.measurementUnit??'m',f=(n:number|null|undefined)=>formatMeasurement(n,unit),shared=sharedPlanFaces(project,floor.id,extent.placements)
+ const suppressedOpenings=duplicatePlanOpenings(project,floor.id,extent.placements)
  for(const shape of extent.shapes){const room=shape.room,placement=extent.placements.find(p=>p.roomId===room.id)!,at=(p:Pt)=>toPaper(worldPoint(p,placement))
   if(layers.walls){for(const [id,faces] of shape.faces)if(!shared.suppressed.has(`${room.id}:${id}`))faces.forEach(face=>page.line(at(face.start),at(face.end),{width:.35}));for(const faces of shape.internalFaces.values())faces.forEach(face=>page.line(at(face.start),at(face.end),{width:.3}))}
   const roomLabel=[layers.ids?room.displayId:'',layers.names?room.name:''].filter(Boolean).join(' — '),visibleObjects=shape.objects.filter(o=>objectLayerVisible(o.object,layers))
   page.text(roomLabelPosition(shape.polygon.map(at),visibleObjects.map(o=>o.bounds.map(at)),roomLabel),roomLabel,3,{align:'center',font:'bold',key:`${room.id}|room`})
   if(layers.measurements||layers.ids)shape.survey.perimeter.segments.forEach(s=>{const a=at(s.start),b=at(s.end),dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy)||1,labelOffset=Math.max(0,s.wall.thickness??0)*k+5;let angle=Math.atan2(dy,dx)*180/Math.PI;if(angle>90)angle-=180;else if(angle< -90)angle+=180;page.text({x:(a.x+b.x)/2+dy/length*labelOffset,y:(a.y+b.y)/2-dx/length*labelOffset},[layers.ids?s.wall.label:'',layers.measurements?`${f(s.wall.lengthM)}`:''].filter(Boolean).join(' · '),2.5,{align:'center',rotate:angle,key:`${room.id}|wall:${s.wall.id}`})})
-  if(layers.openings)for(const o of shape.survey.openings.placements){const a=at(o.start),b=at(o.end),length=Math.hypot(b.x-a.x,b.y-a.y)||1,n={x:-(b.y-a.y)/length,y:(b.x-a.x)/length}
+  if(layers.openings)for(const o of shape.survey.openings.placements.filter(o=>!suppressedOpenings.has(`${room.id}:${o.opening.id}`))){const a=at(o.start),b=at(o.end),length=Math.hypot(b.x-a.x,b.y-a.y)||1,n={x:-(b.y-a.y)/length,y:(b.x-a.x)/length}
    if(o.opening.type==='door'){if(o.opening.doorKind==='sliding')page.line({x:a.x+n.x*1,y:a.y+n.y*1},{x:b.x+n.x*1,y:b.y+n.y*1},{width:.2});else {const hinge=o.opening.hinge==='right'?b:a,other=o.opening.hinge==='right'?a:b,sign=o.opening.swing==='outward'?-1:1,open={x:hinge.x+n.x*length*sign,y:hinge.y+n.y*length*sign};page.line(hinge,open,{width:.25});page.curve(other,{x:other.x+(open.x-hinge.x)*.5523,y:other.y+(open.y-hinge.y)*.5523},{x:open.x+(other.x-hinge.x)*.5523,y:open.y+(other.y-hinge.y)*.5523},open,{width:.15})}}
    if(o.opening.type==='window')page.line(a,b,{width:.18,dash:[1,1]})
    const labelAt={x:(a.x+b.x)/2+n.x*5,y:(a.y+b.y)/2+n.y*5},openingLines=[layers.ids?o.opening.label:'',layers.measurements?`${formatMeasurement(o.opening.widthM,unit,false)} × ${f(o.opening.heightM)}`:'',layers.measurements&&o.opening.type==='window'?`P=${f(o.opening.sillHeightM)}`:''].filter(Boolean)
