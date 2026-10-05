@@ -37,16 +37,18 @@ export interface RoomObject {
   id: string; displayId: string; roomId: string; name: string;
   category: RoomObjectCategory; shape: RoomObjectShape; dimensions: RoomObjectDimensions;
   // Centro do objeto no sistema local: origem no início da primeira parede.
-  position: { xM: number | null; yM: number | null }; rotationDegrees: number | null; note?: string
+  position: { xM: number | null; yM: number | null }; rotationDegrees: number | null; technicalItemKey?: string; note?: string
 }
-export type PhotoEntityType = 'room' | 'wall' | 'door' | 'window' | 'gap' | 'internal_wall' | 'room_object'
+export type CheckStatus = 'pending' | 'ok' | 'na'
+export interface TechnicalCheck { status: CheckStatus; photoPrompted?: boolean; value?: string; note?: string }
+export type PhotoEntityType = 'technical_item' | 'room' | 'wall' | 'door' | 'window' | 'gap' | 'internal_wall' | 'room_object'
 export interface Photo {
   id: string; originalFileName: string; createdAt: string; roomId: string;
   linkedEntityType?: PhotoEntityType; linkedEntityId?: string;
   tags: string[]; note?: string; fileId: string; mimeType: string; size: number
 }
-export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; notes?: string }
+export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
 export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
-export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[] }
+export interface Project { id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck> }

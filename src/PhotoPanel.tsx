@@ -1,11 +1,11 @@
+import { importSurveyPhoto } from './photoImport'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Photo, Project, Room } from './models'
 import type { PhotoRequest } from './PhotoActions'
-import { generateId } from './domain'
 import { projectRooms } from './relationships'
 import { parsePhotoTags, photoTargets, photoTypeNames, searchPhotos } from './photos'
 import type { PhotoFilters } from './photos'
-import { createThumbnail, discardUnlinkedPhotoFile, readPhotoFile, savePhotoFile } from './photoStorage'
+import { readPhotoFile } from './photoStorage'
 
 function usePhotoUrl(fileId: string, thumbnail: boolean) {
   const [url, setUrl] = useState(''), [error, setError] = useState('')
@@ -73,15 +73,10 @@ export default function PhotoPanel({ project, request, initialRoomId, onAdd, onU
     setBusy(true); setError(''); setStatus('Preparando fotos…')
     let imported = 0; const failures: string[] = []
     for (const file of files) {
-      let fileId: string | undefined
       try {
-        if (file.type && !file.type.startsWith('image/')) throw new Error('Escolha um arquivo de imagem.')
-        const thumbnail = await createThumbnail(file)
-        fileId = generateId(); await savePhotoFile(fileId,file,thumbnail)
-        onAdd({ id: fileId, fileId, originalFileName: file.name, createdAt: new Date().toISOString(), roomId, linkedEntityType: target?.type, linkedEntityId: target?.id, tags: [], mimeType: file.type || 'image/*', size: file.size })
+        await importSurveyPhoto(file,roomId,target,onAdd)
         imported++; setStatus(`${imported} foto(s) registrada(s)…`)
       } catch (error) {
-        if (fileId) { try { await discardUnlinkedPhotoFile(fileId) } catch { /* Metadata was not added; preserve failed-cleanup bytes rather than a broken reference. */ } }
         failures.push(`${file.name}: ${error instanceof Error ? error.message : 'Não foi possível registrar a foto.'}`)
       }
     }

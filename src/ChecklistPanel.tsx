@@ -1,7 +1,9 @@
+import { isGeneralCheckField } from './technicalChecklist'
+import TechnicalChecklistPanel, { CompletionStats } from './TechnicalChecklistPanel'
 import { useMemo, useState } from 'react'
 import type { Project, Room } from './models'
 import { id } from './domain'
-import { roomChecklist, measurementTargets } from './checklist'
+import { roomChecklist, measurementTargets, projectChecklistSummary } from './checklist'
 import type { ChecklistIssue } from './checklist'
 import { flattenRooms } from './relationships'
 import type { RoomGeometry } from './roomGeometry'
@@ -13,7 +15,7 @@ export function ManualMarkers({ room, elementId }: { room: Room; elementId: stri
 export function IssueList({ issues, onNavigate }: { issues: ChecklistIssue[]; onNavigate: (issue: ChecklistIssue) => void }) {
   return <ul className="issue-list">{issues.map(issue => <li key={issue.id}><button onClick={() => onNavigate(issue)}><span>{issue.kind === 'manual' ? '⚑' : '⚠'}</span><span>{issue.description}{issue.note && <small>{issue.note}</small>}<small>{issue.kind === 'technical' ? 'Pendência técnica' : issue.kind === 'manual' ? 'Marcação manual' : 'Verificação automática'}</small></span><span aria-hidden="true">→</span></button></li>)}</ul>
 }
-export function RoomChecklistPanel({ room, project, survey, onChange, onNavigate }: { room: Room; project: Project; survey?: RoomGeometry; onChange: (room: Room) => void; onNavigate: (issue: ChecklistIssue) => void }) {
+export function RoomChecklistPanel({ room, project, survey, onChange, onNavigate, onProjectChange }: { room: Room; project: Project; survey?: RoomGeometry; onChange: (room: Room) => void; onProjectChange?: (project:Project)=>void; onNavigate: (issue: ChecklistIssue) => void }) {
   const result = useMemo(() => roomChecklist(room, project, survey), [room, project, survey])
   const targets = useMemo(() => measurementTargets(room), [room])
   const [targetKey, setTargetKey] = useState(room.id)
@@ -23,7 +25,7 @@ export function RoomChecklistPanel({ room, project, survey, onChange, onNavigate
   const target = targets.find(item => item.key === targetKey) ?? targets[0]
   const stored = room.pendingItems
   return <section className="checklist-panel" aria-label="Checklist do ambiente">
-    <div className="completeness"><div><h3>Checklist do ambiente</h3><strong>{result.completeness}% completo</strong><p>{result.complete ? '✓ Completa — sem pendências' : `⚠ ${result.issues.length} pendência${result.issues.length === 1 ? '' : 's'}`}</p></div><progress aria-label="Completude do ambiente" value={result.completeness} max={100}/></div>
+    <CompletionStats result={result}/><TechnicalChecklistPanel result={result} room={room} project={project} onChange={onChange} onProjectChange={onProjectChange} onNavigate={onNavigate}/><div className="completeness"><div><h3>Checklist do ambiente</h3><strong>{result.completeness}% completo</strong><p>{result.complete ? '✓ Completa — sem pendências' : `⚠ ${result.issues.length} pendência${result.issues.length === 1 ? '' : 's'}`}</p></div><progress aria-label="Completude do ambiente" value={result.completeness} max={100}/></div>
     <p className="angle-help">A porcentagem considera o preenchimento dos dados necessários. Mesmo com 100%, confira os alertas e as medidas duvidosas.</p>
     <details><summary>Ver pendências do ambiente ({result.issues.length})</summary><IssueList issues={result.issues} onNavigate={onNavigate}/></details>
     <details><summary>Marcar medida ou elemento para conferir</summary><form className="manual-form" onSubmit={event => {
@@ -43,9 +45,10 @@ export function RoomChecklistPanel({ room, project, survey, onChange, onNavigate
 export function ProjectChecklistPanel({ project, onNavigate }: { project: Project; onNavigate: (issue: ChecklistIssue) => void }) {
   function entries(rooms: Room[], parent = ''): { room: Room; path: string }[] { return rooms.flatMap(room => [{ room, path: parent + (room.name || 'Sem nome') }, ...entries(room.subrooms, parent + (room.name || 'Sem nome') + ' / ')]) }
   const results = useMemo(() => new Map(project.floors.flatMap(floor => flattenRooms(floor.rooms)).map(room => [room.id, roomChecklist(room, project)])), [project])
-  const count = [...results.values()].reduce((sum, result) => sum + result.issues.length, 0)
-  return <section className="editor project-checklist" aria-label="Pendências do projeto"><span className="eyebrow">ANTES DE SAIR DA OBRA</span><h2>Pendências do projeto</h2><p>{count ? `⚠ ${count} pendências a conferir` : '✓ Nenhuma pendência nos ambientes cadastrados'}</p>{!project.floors.length && <p>Cadastre um pavimento e seus ambientes para iniciar a conferência.</p>}{project.floors.map(floor => <section key={floor.id}><h3>{floor.name || 'Pavimento sem nome'}</h3>{!floor.rooms.length && <p>Sem ambientes cadastrados.</p>}{entries(floor.rooms).map(({ room, path }) => {
+  const summary=projectChecklistSummary(project,[...results.values()]), count=summary.issues.length
+  const generalIssues=summary.issues.filter(issue=>isGeneralCheckField(issue.field))
+  return <section className="editor project-checklist" aria-label="Pendências do projeto"><span className="eyebrow">ANTES DE SAIR DA OBRA</span><h2>Pendências do projeto</h2><CompletionStats result={summary}/>{generalIssues.length>0 && <details open><summary>Dados gerais do projeto</summary><IssueList issues={generalIssues} onNavigate={onNavigate}/></details>}<p>{count ? `⚠ ${count} pendências a conferir` : '✓ Nenhuma pendência nos ambientes cadastrados'}</p>{!project.floors.length && <p>Cadastre um pavimento e seus ambientes para iniciar a conferência.</p>}{project.floors.map(floor => <section key={floor.id}><h3>{floor.name || 'Pavimento sem nome'}</h3>{!floor.rooms.length && <p>Sem ambientes cadastrados.</p>}{entries(floor.rooms).map(({ room, path }) => {
     const result = results.get(room.id)!
-    return <div className="project-room-check" key={room.id}><h4><button onClick={() => onNavigate({ id: `room:${room.id}`, roomId: room.id, elementId: room.id, description: path, kind: 'automatic' })}>{path} →</button></h4><p>{result.completeness}% completo · {result.complete ? '✓ Completa' : `⚠ ${result.issues.length} pendência${result.issues.length === 1 ? '' : 's'}`}</p><IssueList issues={result.issues} onNavigate={onNavigate}/></div>
+    return <div className="project-room-check" key={room.id}><h4><button onClick={() => onNavigate({ id: `room:${room.id}`, roomId: room.id, elementId: room.id, description: path, kind: 'automatic' })}>{path} →</button></h4><p>{result.completeness}% completo · {result.complete ? '✓ Completa' : `⚠ ${result.issues.length} pendência${result.issues.length === 1 ? '' : 's'}`}</p><IssueList issues={result.issues.filter(issue=>!isGeneralCheckField(issue.field))} onNavigate={onNavigate}/></div>
   })}</section>)}</section>
 }

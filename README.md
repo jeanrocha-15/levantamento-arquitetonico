@@ -2,6 +2,16 @@
 
 Estrutura inicial em React, TypeScript e Vite. Interface em português, com projetos, pavimentos, ambientes e subambientes independentes.
 
+## Etapa 20 — checklist e completude
+
+O checklist possui grupos recolhíveis de Dados gerais, Medições, Elétrica/Gás e Produtos perigosos. Status Pendente não conclui; OK exige a conferência e a validade das medidas cadastradas; N/A dispensa as exigências automáticas do item. As categorias técnicas usam as medidas existentes na mesma obrigação, sem duplicação. Vigas, pilares, equipamentos e outros elementos podem ser classificados no cadastro de objetos e abertos pelo checklist. Dados gerais pertencem ao projeto e contam uma única vez em seu indicador agregado.
+
+Resumo, checklist, pendências do projeto e relatório mostram separadamente Levantamento (%), Verificações (X/Y), Pendências e Fotos (registros). Fotos e o registro opcional de fachada ficam fora da porcentagem. Pendências abrem o campo ou grupo correspondente. Marcações manuais e problemas de relações continuam disponíveis.
+
+Ao cadastrar ambiente/elemento ou registrar item relevante, um convite opcional oferece Tirar foto, Importar e Agora não. O arquivo recebe automaticamente o vínculo do item, usando IndexedDB para original/miniatura. Recusar não cria pendência ou muda a porcentagem. Vínculos com verificações técnicas também podem ser pesquisados. O schema 5 preserva projetos anteriores; verificações novas começam pendentes até serem conferidas, sem marcar dados antigos silenciosamente como OK.
+
+Validação: build, suítes anteriores, testes de status, duplicação, classificação, vínculo de fotos, migração e reabertura de metadados/Blobs. O servidor opcional aceita schema 5; nenhuma conexão com banco foi ativada.
+
 ## Etapa 19 — organização por categorias
 
 O ambiente agora abre em Resumo, com acesso rápido a Perímetro, Aberturas, Elementos internos, Objetos, Fotos, Checklist, Pendências e Relatório. O botão de próximo módulo percorre o fluxo e retorna ao Resumo. As aberturas podem ser filtradas por tipo e parede; fotos possuem filtros rápidos e a pesquisa existente. Atalhos do croqui e das pendências abrem a categoria do elemento.

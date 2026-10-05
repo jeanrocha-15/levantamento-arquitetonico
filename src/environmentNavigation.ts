@@ -17,6 +17,7 @@ export function nextEnvironmentSection(section:EnvironmentSection):EnvironmentSe
   return flow[(flow.indexOf(section)+1)%flow.length]
 }
 export function sectionForIssue(room:Room,issue:ChecklistIssue):EnvironmentSection {
+  if(issue.field?.startsWith('check:') || issue.elementId?.startsWith(`${room.id}:check:`)) return 'checklist'
   if(issue.elementId===room.id && issue.field!=='geometry') return 'summary'
   if(issue.field==='geometry' || room.walls.some(x=>x.id===issue.elementId) || room.corners.some(x=>x.id===issue.elementId) || room.diagonals.some(x=>x.id===issue.elementId)) return 'perimeter'
   if(room.openings.some(x=>x.id===issue.elementId)) return 'openings'

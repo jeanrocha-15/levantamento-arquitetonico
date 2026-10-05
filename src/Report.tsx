@@ -1,3 +1,4 @@
+import { CompletionStats } from './TechnicalChecklistPanel'
 import { formatMeasurement } from './units'
 import { useMemo } from 'react'
 import type { Project, Room } from './models'
@@ -32,7 +33,7 @@ function RoomReport({ entry, project }: { entry: Entry; project: Project }) {
   const wallName = (wallId: string) => room.walls.find(wall => wall.id === wallId)?.label ?? '?'
   return <article className="report-room">
     <header><p className="breadcrumb">{entry.path}</p><h2>{room.name || 'Sem nome'}</h2><span className={`pill ${status.complete ? 'pill-complete' : ''}`}>{status.complete ? '✓ Completo' : `Em levantamento · ${status.completeness}%`}</span></header>
-    <div className="report-grid">
+    <CompletionStats result={status}/><div className="report-grid">
       <Sketch room={room} survey={survey} variant="report"/>
       <div>
         <dl className="report-metrics">

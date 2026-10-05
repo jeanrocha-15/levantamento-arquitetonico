@@ -24,3 +24,9 @@
 @media(max-width:800px) { .sketch-panel:not(.expanded) .sketch-note {display:none;} .sketch-panel:not(.expanded) .sketch-heading h2 {font-size:15px;} }
 
 @media(max-width:800px) { .environment-editor {scroll-margin-top:calc(var(--header-height) + 60px);} }
+
+/* Etapa 20: verificações técnicas e fotografia opcional. */
+.completion-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--page);font-size:12px;color:var(--ink)}
+.technical-checklist details{border:1px solid var(--border);border-radius:12px;padding:14px;margin:14px 0;background:var(--page)}.technical-checklist summary{cursor:pointer;display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:700}.technical-check-row{border-top:1px solid var(--border);padding:16px 0;margin-top:12px}.technical-check-row>div:first-child{display:grid;grid-template-columns:1fr 180px;gap:14px;align-items:center}.technical-check-row h4{margin:0;font-size:14px}.technical-check-row>label{margin:14px 0}.technical-check-row button{font-size:11px}.technical-check-row .element-photo-actions{margin-top:10px}.technical-check-row select{min-height:44px}.photo-offer{position:fixed;right:24px;top:calc(var(--header-height) + 16px);z-index:45;width:min(420px,calc(100vw - 24px));padding:18px;background:var(--surface);border:2px solid var(--accent);border-radius:14px;box-shadow:0 8px 32px #0f27472b}.photo-offer p{font-size:12px;line-height:1.5;margin:8px 0}.photo-offer>div:last-of-type{display:flex;gap:8px;flex-wrap:wrap}.photo-offer button{font-size:12px;min-height:44px}
+@media(max-width:800px){.technical-check-row>div:first-child{grid-template-columns:1fr}.photo-offer{right:12px;top:calc(var(--header-height) + 52px)}.completion-stats{padding:12px;font-size:11px}}
+@media print{.photo-offer{display:none!important}}

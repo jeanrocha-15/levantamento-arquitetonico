@@ -17,7 +17,7 @@ export function cloneWithNewIds(project: Project, newId: () => string = generate
   collect(project)
   // Troca só os trechos que são exatamente IDs conhecidos (também dentro de "a/b" e "tipo:id").
   const remap = (text: string) => text.replace(/[^:/]+/g, part => idMap.get(part) ?? part)
-  const freeText = new Set([...(keepFileIds ? ['fileId'] : []), 'displayId', 'name', 'label', 'description', 'note', 'notes', 'originalFileName', 'tags', 'customWallType', 'mimeType', 'createdAt'])
+  const freeText = new Set([...(keepFileIds ? ['fileId'] : []), 'displayId', 'name', 'label', 'description', 'note', 'notes', 'value', 'technicalItemKey', 'originalFileName', 'tags', 'customWallType', 'mimeType', 'createdAt'])
   const walk = (value: unknown, key?: string): unknown => {
     if (key && freeText.has(key)) return value
     if (typeof value === 'string') return remap(value)

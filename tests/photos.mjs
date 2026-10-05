@@ -54,7 +54,7 @@ assert.deepEqual(find('P01'),['door-photo']); assert.deepEqual(find('compressor 
 const data = {projects:[project],projectId:'project',floorId:'floor',roomId:room.id}
 const snapshot = createSnapshot(data)
 assert.deepEqual(decodeSnapshot(encodeSnapshot(snapshot)),snapshot)
-assert.equal(snapshot.schemaVersion,4)
+assert.equal(snapshot.schemaVersion,SCHEMA_VERSION)
 assert.equal(JSON.stringify(snapshot).includes('data:image'),false)
 for (const version of [1,2,3]) {
   const legacy = structuredClone(snapshot); legacy.schemaVersion = version

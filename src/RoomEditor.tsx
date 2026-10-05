@@ -1,3 +1,4 @@
+import { CompletionStats } from './TechnicalChecklistPanel'
 import { ElementPhotos } from './PhotoActions'
 import RoomObjectEditor from './RoomObjectEditor'
 import { MeasurementInput, useMeasurements } from './Measurement'
@@ -29,7 +30,7 @@ import { ENVIRONMENT_SECTIONS, nextEnvironmentSection, sectionForIssue } from '.
 import type { EnvironmentSection } from './environmentNavigation'
 import { unitNames } from './units'
 import type { MeasurementUnit } from './units'
-export default function RoomEditor({ room, survey, onChange, relatedRooms, project, onNavigate, focusIssue, selectedObjectId, onSelectObject, section, onSectionChange, photosPanel, reportPanel, onUnitChange }: { room: Room; survey: RoomGeometry; onChange: (room: Room) => void; relatedRooms: RoomOption[]; project: Project; onNavigate: (issue: ChecklistIssue) => void; focusIssue?: ChecklistIssue; selectedObjectId?: string; onSelectObject?: (id: string) => void; section?: EnvironmentSection; onSectionChange?: (section: EnvironmentSection) => void; photosPanel?: ReactNode; reportPanel?: ReactNode; onUnitChange?: (unit: MeasurementUnit) => void }) {
+export default function RoomEditor({ room, survey, onChange, relatedRooms, project, onNavigate, focusIssue, selectedObjectId, onSelectObject, section, onSectionChange, photosPanel, reportPanel, onUnitChange, onChangeProject }: { room: Room; survey: RoomGeometry; onChange: (room: Room) => void; relatedRooms: RoomOption[]; project: Project; onNavigate: (issue: ChecklistIssue) => void; focusIssue?: ChecklistIssue; selectedObjectId?: string; onSelectObject?: (id: string) => void; section?: EnvironmentSection; onSectionChange?: (section: EnvironmentSection) => void; photosPanel?: ReactNode; reportPanel?: ReactNode; onChangeProject?: (project:Project)=>void; onUnitChange?: (unit: MeasurementUnit) => void }) {
   const { unit } = useMeasurements()
   const [localSection,setLocalSection]=useState<EnvironmentSection>('summary')
   const activeSection=section ?? localSection
@@ -78,7 +79,7 @@ export default function RoomEditor({ room, survey, onChange, relatedRooms, proje
 
       <label>Unidade do projeto<select value={unit} disabled={!onUnitChange} onChange={event=>onUnitChange?.(event.target.value as MeasurementUnit)}>{Object.entries(unitNames).map(([value,label])=><option key={value} value={value}>{label} ({value})</option>)}</select></label>
       <label>Observações gerais<textarea rows={3} maxLength={2000} value={room.notes ?? ''} onChange={event=>onChange({...room,notes:event.target.value})} placeholder="Condições do ambiente e observações de campo"/></label>
-      <div className="summary-completeness"><progress value={status.completeness} max={100} aria-label="Completude do ambiente"/><span>{status.completeness}% completo · {status.issues.length} pendências</span><button onClick={()=>switchSection('issues')}>Conferir pendências →</button></div>
+      <CompletionStats result={status}/><div className="summary-completeness"><progress value={status.completeness} max={100} aria-label="Completude do ambiente"/><span>{status.completeness}% completo · {status.issues.length} pendências</span><button onClick={()=>switchSection('issues')}>Conferir pendências →</button></div>
       <div className="module-overview">{[{id:'perimeter',label:'Paredes',count:room.walls.length},{id:'openings',label:'Aberturas',count:room.openings.length},{id:'internal',label:'Paredes internas',count:room.internalWalls.length},{id:'objects',label:'Objetos',count:room.objects?.length ?? 0},{id:'photos',label:'Fotos',count:room.photos?.length ?? 0}].map(item=><button key={item.id} onClick={()=>switchSection(item.id as EnvironmentSection)}><strong>{item.count}</strong><span>{item.label}</span></button>)}</div>
       <ElementPhotos room={room} type="room" entityId={room.id}/></div>}
     {activeSection==='perimeter' && <><div className="wall-heading"><div><h3>Paredes do perímetro</h3><p>Cadastre as paredes na ordem do levantamento.</p></div><span className="count">{room.walls.length}</span></div>
@@ -92,7 +93,7 @@ export default function RoomEditor({ room, survey, onChange, relatedRooms, proje
     {activeSection==='internal' && <><InternalWallEditor room={room} onChange={onChange} checks={internalWallLayout.checks}/><div className="internal-elements-guide"><h3>Outros elementos existentes</h3><p>Pilares, vigas aparentes, muretas, escadas, rampas, cobogós e grades podem ser identificados com nome, dimensões, posição e fotos no cadastro de objetos.</p><button onClick={()=>switchSection('objects')}>Cadastrar em Objetos →</button></div></>}
     {activeSection==='objects' && <RoomObjectEditor room={room} onChange={onChange} selectedId={selectedObjectId} onSelect={onSelectObject}/>}
     {activeSection==='photos' && (photosPanel ?? <p>Abra Fotos do projeto para registrar imagens.</p>)}
-    {activeSection==='checklist' && <RoomChecklistPanel room={room} survey={survey} project={project} onChange={onChange} onNavigate={onNavigate}/>}
+    {activeSection==='checklist' && <RoomChecklistPanel onProjectChange={onChangeProject} room={room} survey={survey} project={project} onChange={onChange} onNavigate={onNavigate}/>}
     {activeSection==='issues' && <EnvironmentIssuesPanel room={room} project={project} survey={survey} onNavigate={onNavigate}/>}
     {activeSection==='report' && <><RoomSummary metrics={metrics}/>{reportPanel}</>}
     </div><div className="module-flow"><span>{ENVIRONMENT_SECTIONS.find(section=>section.id===activeSection)?.description}</span><button className="primary" onClick={()=>switchSection(nextEnvironmentSection(activeSection))}>Próximo: {ENVIRONMENT_SECTIONS.find(section=>section.id===nextEnvironmentSection(activeSection))?.label} →</button></div>
