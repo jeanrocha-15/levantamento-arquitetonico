@@ -23,8 +23,8 @@ export function relationshipProblems(project: Project): RelationshipProblem[] {
       if (!opening.connectedRoomId && !opening.connectedOpeningId) continue
       const target = opening.connectedRoomId && byId.get(opening.connectedRoomId)
       if (!target) add(room.id, opening.id, `opening-room-${opening.id}`, `${opening.label}: esta abertura apontava para um ambiente inexistente ou sem destino definido.`)
-      else if (target.id === room.id || opening.type === 'window') add(room.id, opening.id, `opening-self-${opening.id}`, `${opening.label}: relação entre ambientes inválida.`)
-      else if (opening.connectedOpeningId && !target.openings.some(item => item.id === opening.connectedOpeningId && item.id !== opening.id && item.type !== 'window')) add(room.id, opening.id, `opening-target-${opening.id}`, `${opening.label}: abertura correspondente inexistente ou inválida.`)
+      else if (target.id === room.id) add(room.id, opening.id, `opening-self-${opening.id}`, `${opening.label}: relação entre ambientes inválida.`)
+      else if (opening.connectedOpeningId && !target.openings.some(item => item.id === opening.connectedOpeningId && item.id !== opening.id)) add(room.id, opening.id, `opening-target-${opening.id}`, `${opening.label}: abertura correspondente inexistente ou inválida.`)
     }
     for (const wall of room.walls) {
       const reference = wall.sharedWallReference
@@ -37,7 +37,7 @@ export function relationshipProblems(project: Project): RelationshipProblem[] {
     const source = byId.get(relation.sourceRoomId), target = byId.get(relation.targetRoomId)
     const owns = (room: Room, elementId?: string) => !elementId || [...room.walls, ...room.openings, ...room.internalWalls, ...getCorners(room.walls,room.corners)].some(item => item.id === elementId)
     const correctElementTypes = source && target && (relation.type === 'opening_connection'
-      ? source.openings.some(item => item.id === relation.sourceElementId && item.type !== 'window') && (!relation.targetElementId || target.openings.some(item => item.id === relation.targetElementId && item.type !== 'window'))
+      ? source.openings.some(item => item.id === relation.sourceElementId) && (!relation.targetElementId || target.openings.some(item => item.id === relation.targetElementId))
       : relation.type === 'shared_wall' ? source.walls.some(item => item.id === relation.sourceElementId) && target.walls.some(item => item.id === relation.targetElementId) : true)
     if (!source || !target || source.id === target.id || !owns(source, relation.sourceElementId) || !owns(target, relation.targetElementId) || !correctElementTypes) {
       const survivor = source ?? target
@@ -69,10 +69,10 @@ export function reconcileRelationships(project: Project, previous?: Project): Pr
     return { ...room, floorId, parentRoomId, pendingItems: [...manualItems.map(item => clearDeletedTarget(relevant.some(problem => problem.key === item.issueKey) ? { ...item, resolved: false } : item)), ...additions.map(item => clearDeletedTarget({ id: id(), kind: 'technical' as const, description: item.description, elementId: item.elementId, issueKey: item.key, resolved: false }))],
       openings: room.openings.map(opening => {
         const target = opening.connectedRoomId && byId.get(opening.connectedRoomId)
-        if (opening.type === 'window' || !target || target.id === room.id) {
+        if (!target || target.id === room.id) {
           return { ...opening, connectedRoomId: undefined, connectedOpeningId: undefined }
         }
-        const corresponding = target.openings.find(item => item.id === opening.connectedOpeningId && item.id !== opening.id && item.type !== 'window')
+        const corresponding = target.openings.find(item => item.id === opening.connectedOpeningId && item.id !== opening.id)
         relation('opening_connection', room, opening.id, target.id, corresponding?.id)
         return { ...opening, connectedOpeningId: corresponding?.id }
       }),

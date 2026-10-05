@@ -1,5 +1,5 @@
 import type { Room, RoomPlacement, SpatialConnection, SpatialSide } from './models'
-import { buildPlanRoom, alignRoomAnchors, putRoomPlacement, rotatePoint, normalizeRotation, midpoint } from './floorPlan'
+import { buildPlanRoom, alignRoomAnchors, putRoomPlacement, rotatePoint, normalizeRotation, midpoint, worldPoint, pointDistance } from './floorPlan'
 import type { Project } from './models'
 import { buildWallFaces } from './wallFaces'
 
@@ -22,6 +22,11 @@ export function cornerSnap(connection:SpatialConnection,source:Room,target:Room,
    if(!relative)return undefined
    const rotation=normalizeRotation(anchor.rotation-relative.rotation),offset=rotatePoint(relative,rotation)
    return {roomId:target.id,floorId:target.floorId,x:anchor.x-offset.x,y:anchor.y-offset.y,rotation}
+  }
+  if(connection.assembly && connection.a.wallId && connection.b.wallId) {
+   const sa=buildPlanRoom(source),sb=buildPlanRoom(target),ca=sa.survey.perimeter.corners.find(c=>c.id===connection.a.elementId&&c.wallIds.includes(connection.a.wallId!)),cb=sb.survey.perimeter.corners.find(c=>c.id===connection.b.elementId&&c.wallIds.includes(connection.b.wallId!)),wa=sa.survey.perimeter.segments.find(s=>s.wall.id===connection.a.wallId),wb=sb.survey.perimeter.segments.find(s=>s.wall.id===connection.b.wallId)
+   if(!ca||!cb||!wa||!wb)return undefined
+   return alignRoomAnchors(target,anchor,{position:ca.position,angle:Math.atan2(wa.direction.y,wa.direction.x)*180/Math.PI},{position:cb.position,angle:Math.atan2(wb.direction.y,wb.direction.x)*180/Math.PI},!connection.flipped)
   }
   const a=cornerAnchor(source,connection.a,connection.placementMode),b=cornerAnchor(target,connection.b,connection.placementMode)
   if(!a||!b)return undefined
@@ -47,7 +52,14 @@ export function cornerWallRelationships(project:Project,floorId:string) {
  const rooms=project.floors.find(f=>f.id===floorId)?.rooms??[],flatten=(list:Room[]):Room[]=>list.flatMap(r=>[r,...flatten(r.subrooms)])
  const byId=new Map(flatten(rooms).map(r=>[r.id,r])),result:import('./models').RoomRelationship[]=[]
  for(const connection of project.spatialConnections??[]) {
-  if(connection.type!=='corner'||!connection.placementMode)continue
+  if(connection.type!=='corner'||connection.assemblyDetached)continue
+  if(connection.assembly && connection.a.wallId && connection.b.wallId) {
+   const a=byId.get(connection.a.roomId),b=byId.get(connection.b.roomId);if(!a||!b)continue
+   const sa=buildPlanRoom(a),sb=buildPlanRoom(b),ca=sa.survey.perimeter.corners.find(c=>c.id===connection.a.elementId),cb=sb.survey.perimeter.corners.find(c=>c.id===connection.b.elementId),pa={roomId:a.id,floorId,x:0,y:0,rotation:0},pb=cornerSnap(connection,a,b,pa);if(!ca||!cb||!pb)continue
+   for(const aid of ca.wallIds)for(const bid of cb.wallIds){const wa=sa.survey.perimeter.segments.find(s=>s.wall.id===aid),wb=sb.survey.perimeter.segments.find(s=>s.wall.id===bid);if(!wa||!wb)continue;const bs=worldPoint(wb.start,pb),be=worldPoint(wb.end,pb),length=pointDistance(wa.start,wa.end);if(!length)continue;const d={x:(wa.end.x-wa.start.x)/length,y:(wa.end.y-wa.start.y)/length},dot=(p:{x:number;y:number})=>(p.x-wa.start.x)*d.x+(p.y-wa.start.y)*d.y,off=(p:{x:number;y:number})=>Math.abs((p.x-wa.start.x)*d.y-(p.y-wa.start.y)*d.x),overlap=Math.min(length,Math.max(dot(bs),dot(be)))-Math.max(0,Math.min(dot(bs),dot(be)));if(off(bs)>1e-6||off(be)>1e-6||overlap<=1e-6)continue;const same=(be.x-bs.x)*d.x+(be.y-bs.y)*d.y>0;result.push({id:`${connection.id}:wall:${aid}:${bid}`,type:'shared_wall',sourceRoomId:a.id,sourceElementId:aid,targetRoomId:b.id,targetElementId:bid,derivedFromCornerId:connection.id,placementMode:same?'inside':'outside'})}
+   continue
+  }
+  if(!connection.placementMode)continue
   const a=byId.get(connection.a.roomId),b=byId.get(connection.b.roomId);if(!a||!b)continue
   const ca=cornerAnchor(a,connection.a),cb=cornerAnchor(b,connection.b);if(!ca||!cb)continue
   const indices=connection.placementMode==='inside'?[0,1]:[connection.sharedWallId===ca.corner.wallIds[0]?0:1]

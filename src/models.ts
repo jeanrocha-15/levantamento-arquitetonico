@@ -25,8 +25,8 @@ export interface InternalWall {
   formalDivisionRelationshipId?: string
 }
 export type RoomRelationshipType = 'opening_connection' | 'shared_wall' | 'adjacency' | 'manual_reference' | 'corner'
-export interface SpatialSide { roomId: string; elementId?: string; face?: 'internal' | 'external' }
-export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; note?: string }
+export interface SpatialSide { roomId: string; elementId?: string; wallId?: string; face?: 'internal' | 'external' }
+export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; assembly?: boolean; flipped?: boolean; assemblyLocked?: boolean; assemblyDetached?: boolean; note?: string }
 export interface RoomRelationship {
   id: string; type: RoomRelationshipType; sourceRoomId: string; sourceElementId?: string;
   targetRoomId: string; targetElementId?: string; note?: string; spatialConnectionId?: string; orientation?: 'normal' | 'inverted'; sourceFace?: 'internal' | 'external'; targetFace?: 'internal' | 'external'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; derivedFromCornerId?: string
@@ -59,7 +59,9 @@ export interface Room { id: string; displayId?: string; name: string; floorId: s
 export type LabelOffsets = Record<string, { dx: number; dy: number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
 // Metros e graus, apenas na Planta Geral. Nunca são coordenadas do croqui individual.
-export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number }
+export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number; locked?: boolean }
+export interface PlanPreferences { baseRoomId?: string; gridVisible?: boolean; gridStepM?: number; snap?: boolean; visibility?: Record<string, boolean | undefined> }
+export interface WallCompatibility { id: string; connectionId: string; a: {roomId:string;wallId:string}; b: {roomId:string;wallId:string}; strategy: 'original'|'a'|'b'|'mean'|'manual'; valueM: number | null }
 export interface RoofWater { inclinationPercent?: number | null; id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
 export interface Roof { id: string; displayId: string; projectId: string; floorId?: string; name: string; shape: 'rectangular' | 'square'; lengthM: number | null; widthM: number | null; waterCount: 1 | 2 | 3 | 4; waters: RoofWater[]; note?: string; photos?: Photo[]; checks?: Record<string, TechnicalCheck> }
-export interface Project { exportSelection?: {scope:'room'|'floor'|'plan';roomId?:string;floorId?:string}; openingCounters?: Record<OpeningType, number>; spatialConnections?: SpatialConnection[]; id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[] }
+export interface Project { exportSelection?: {scope:'room'|'floor'|'plan';roomId?:string;floorId?:string}; openingCounters?: Record<OpeningType, number>; spatialConnections?: SpatialConnection[]; id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[]; planPreferences?: Record<string, PlanPreferences>; wallCompatibilities?: WallCompatibility[] }

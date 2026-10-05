@@ -9,7 +9,7 @@ export function mapProjectRooms(project:Project,change:(room:Room)=>Room):Projec
   return {...project,floors:project.floors.map(f=>({...f,rooms:visit(f.rooms)}))}
 }
 export function availableCounterpart(opening:Opening,sourceRoomId:string,candidate:Opening) {
-  return candidate.id!==opening.id && candidate.type===opening.type && candidate.type!=='window' && (!candidate.connectedRoomId || candidate.connectedRoomId===sourceRoomId) && (!candidate.connectedOpeningId || candidate.connectedOpeningId===opening.id)
+  return candidate.id!==opening.id && candidate.type===opening.type && (!candidate.connectedRoomId || candidate.connectedRoomId===sourceRoomId) && (!candidate.connectedOpeningId || candidate.connectedOpeningId===opening.id)
 }
 export function nextProjectOpeningSequence(project:Project,type:Opening['type']) {
   return nextVisualSequence(allRooms(project).flatMap(r=>r.openings.filter(o=>o.type===type).map(o=>o.label)),{door:'P',window:'J',gap:'V'}[type])
@@ -63,7 +63,8 @@ export function prepareOpeningConnections(project:Project,previous?:Project):Pro
     const aEdited=!!beforeA && (!Object.is(a.widthM,beforeA.widthM)||!Object.is(a.heightM,beforeA.heightM))
     const bEdited=!!beforeB && (!Object.is(b.widthM,beforeB.widthM)||!Object.is(b.heightM,beforeB.heightM))
     const newlyLinked=!!previous && (beforeA?.connectedOpeningId!==b.id || beforeB?.connectedOpeningId!==a.id)
-    if(newlyLinked) {const reference=changed(a)?b:a;a={...a,widthM:reference.widthM,heightM:reference.heightM};b={...b,widthM:reference.widthM,heightM:reference.heightM}}
+    const preserveOriginal=project.spatialConnections?.some(c=>c.assembly&&c.type==='opening'&&[c.a.elementId,c.b.elementId].includes(a.id)&&[c.a.elementId,c.b.elementId].includes(b.id))
+    if(newlyLinked && !preserveOriginal) {const reference=changed(a)?b:a;a={...a,widthM:reference.widthM,heightM:reference.heightM};b={...b,widthM:reference.widthM,heightM:reference.heightM}}
     else if(aEdited&&!bEdited)b={...b,widthM:a.widthM,heightM:a.heightM}
     else if(bEdited&&!aEdited)a={...a,widthM:b.widthM,heightM:b.heightM}
     openings.set(a.id,a);openings.set(b.id,b);consumed.add(a.id);consumed.add(b.id);paired.add(a.id);paired.add(b.id)
@@ -76,21 +77,25 @@ export function reconcileSpatialConnections(project:Project):Project {
   const add=(type:SpatialConnection['type'],a:SpatialConnection['a'],b:SpatialConnection['b'],old?:SpatialConnection)=>{
     const key=type+pairKey(a,b);if(seen.has(key))return;seen.add(key)
     const saved=old ?? project.spatialConnections?.find(c=>c.type===type && (pairKey(c.a,c.b)===pairKey(a,b) || type==='opening' && [c.a.elementId,c.b.elementId].some(elementId=>!!elementId && [a.elementId,b.elementId].includes(elementId))))
-    connections.push({...saved,id:saved?.id ?? generateId(),type,a,b})
+    connections.push({...saved,id:saved?.id ?? generateId(),type,a:{...saved?.a,...a,wallId:saved?.a.roomId===a.roomId?saved.a.wallId:saved?.b.wallId},b:{...saved?.b,...b,wallId:saved?.b.roomId===b.roomId?saved.b.wallId:saved?.a.wallId}})
   }
   for(const room of rooms){
-    for(const opening of room.openings)if(opening.type!=='window' && opening.connectedRoomId && byId.has(opening.connectedRoomId))add('opening',{roomId:room.id,elementId:opening.id},{roomId:opening.connectedRoomId,elementId:opening.connectedOpeningId})
+    for(const opening of room.openings)if(opening.connectedRoomId && byId.has(opening.connectedRoomId))add('opening',{roomId:room.id,elementId:opening.id},{roomId:opening.connectedRoomId,elementId:opening.connectedOpeningId})
     for(const wall of room.walls)if(wall.sharedWallReference)add('shared_wall',{roomId:room.id,elementId:wall.id},{roomId:wall.sharedWallReference.roomId,elementId:wall.sharedWallReference.wallId})
   }
   for(const c of project.spatialConnections ?? []) {
-    if(c.type==='opening'||c.type==='shared_wall')continue
+    if((c.type==='opening'||c.type==='shared_wall')&&!c.assembly)continue
     const a=byId.get(c.a.roomId),b=byId.get(c.b.roomId)
     if(!a||!b||a.id===b.id)continue
     const owns=(r:Room,elementId?:string)=>!elementId || [...r.corners,...r.walls,...r.internalWalls,...r.openings,...r.objects??[]].some(e=>e.id===elementId)
-    if(c.type==='corner'?getCorners(a.walls,a.corners).some(x=>x.id===c.a.elementId)&&getCorners(b.walls,b.corners).some(x=>x.id===c.b.elementId):owns(a,c.a.elementId)&&owns(b,c.b.elementId))add(c.type,c.a,c.b,c)
+    if(c.type==='opening'&&connections.some(x=>x.type==='opening'&&x.id!==c.id&&[x.a.elementId,x.b.elementId].some(id=>!!id&&[c.a.elementId,c.b.elementId].includes(id))))continue
+    const cornerValid=(r:Room,side:SpatialConnection['a'])=>getCorners(r.walls,r.corners).some(x=>x.id===side.elementId&&(!c.assembly||!!side.wallId&&x.wallIds.includes(side.wallId)))
+    const typeValid=c.type==='corner'?cornerValid(a,c.a)&&cornerValid(b,c.b):c.type==='shared_wall'?a.walls.some(w=>w.id===c.a.elementId)&&b.walls.some(w=>w.id===c.b.elementId):c.type==='opening'?a.openings.some(o=>o.id===c.a.elementId)&&b.openings.some(o=>o.id===c.b.elementId):owns(a,c.a.elementId)&&owns(b,c.b.elementId)
+    if(typeValid)add(c.type,c.a,c.b,c)
   }
   for(const r of project.relationships)if(r.type==='adjacency'||r.type==='manual_reference')add('manual',{roomId:r.sourceRoomId,elementId:r.sourceElementId},{roomId:r.targetRoomId,elementId:r.targetElementId},project.spatialConnections?.find(c=>c.id===r.spatialConnectionId))
   const relationships=project.relationships.filter(r=>r.type!=='corner').map(r=>({...r,spatialConnectionId:connections.find(c=>pairKey(c.a,c.b)===pairKey({roomId:r.sourceRoomId,elementId:r.sourceElementId},{roomId:r.targetRoomId,elementId:r.targetElementId}))?.id}))
+  connections.filter(c=>c.assembly && c.type!=='corner').forEach(c=>{if(!relationships.some(r=>r.spatialConnectionId===c.id))relationships.push({id:c.id,type:c.type==='opening'?'opening_connection':'shared_wall',sourceRoomId:c.a.roomId,sourceElementId:c.a.elementId,targetRoomId:c.b.roomId,targetElementId:c.b.elementId,spatialConnectionId:c.id})})
   connections.filter(c=>c.type==='corner').forEach(c=>relationships.push({id:c.id,type:'corner',sourceRoomId:c.a.roomId,sourceElementId:c.a.elementId,targetRoomId:c.b.roomId,targetElementId:c.b.elementId,spatialConnectionId:c.id,sourceFace:c.a.face,targetFace:c.b.face,orientation:c.orientation,placementMode:c.placementMode,sharedWallId:c.sharedWallId}))
   return {...project,spatialConnections:connections,relationships}
 }
