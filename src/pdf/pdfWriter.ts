@@ -24,29 +24,46 @@ export function textWidthMm(text: string, sizeMm: number, font: Font = 'regular'
 const n = (value: number) => (Math.round(value * 1000) / 1000).toString()
 export interface StrokeStyle { width: number; gray?: number; dash?: number[] }
 
+export type PdfSection = 'drawing' | 'title' | 'legend' | 'paper'
+export type PdfTextOptions = {align?:'left'|'center'|'right';font?:Font;rotate?:number;gray?:number;key?:string}
+export type PdfCommand =
+ | {kind:'line';a:Pt;b:Pt;style:StrokeStyle}
+ | {kind:'polyline';points:Pt[];style:StrokeStyle;close:boolean}
+ | {kind:'rect';x:number;y:number;w:number;h:number;style:StrokeStyle & {fillGray?:number;stroke?:boolean}}
+ | {kind:'curve';a:Pt;c1:Pt;c2:Pt;b:Pt;style:StrokeStyle}
+ | {kind:'circle';center:Pt;r:number;style:StrokeStyle}
+ | {kind:'text';at:Pt;text:string;sizeMm:number;options:PdfTextOptions}
+export type PdfSceneItem = PdfCommand & {section:PdfSection}
+
 export class PdfPage {
   readonly ops: string[] = []
+  readonly scene: PdfSceneItem[] = []
+  section: PdfSection = 'drawing'
+  private record(command:PdfCommand) { this.scene.push({...command,section:this.section}) }
   constructor(readonly widthMm: number, readonly heightMm: number) {}
   private p(point: Pt) { return `${n(point.x * PT_PER_MM)} ${n((this.heightMm - point.y) * PT_PER_MM)}` }
   private style({ width, gray = 0, dash }: StrokeStyle) { this.ops.push(`${n(width * PT_PER_MM)} w ${n(gray)} G [${(dash ?? []).map(d => n(d * PT_PER_MM)).join(' ')}] 0 d`) }
-  line(a: Pt, b: Pt, style: StrokeStyle) { this.style(style); this.ops.push(`${this.p(a)} m ${this.p(b)} l S`) }
-  polyline(points: Pt[], style: StrokeStyle, close = false) { if (points.length < 2) return; this.style(style); this.ops.push(`${points.map((pt, i) => `${this.p(pt)} ${i ? 'l' : 'm'}`).join(' ')} ${close ? 'h ' : ''}S`) }
+  line(a: Pt, b: Pt, style: StrokeStyle) { this.record({kind:'line',a,b,style}); this.style(style); this.ops.push(`${this.p(a)} m ${this.p(b)} l S`) }
+  polyline(points: Pt[], style: StrokeStyle, close = false) { if (points.length < 2) return; this.record({kind:'polyline',points,style,close}); this.style(style); this.ops.push(`${points.map((pt, i) => `${this.p(pt)} ${i ? 'l' : 'm'}`).join(' ')} ${close ? 'h ' : ''}S`) }
   rect(x: number, y: number, w: number, h: number, style: StrokeStyle & { fillGray?: number; stroke?: boolean }) {
+    this.record({kind:'rect',x,y,w,h,style})
     this.style(style)
     if (style.fillGray !== undefined) this.ops.push(`${n(style.fillGray)} g`)
     this.ops.push(`${this.p({ x, y: y + h })} ${n(w * PT_PER_MM)} ${n(h * PT_PER_MM)} re ${style.fillGray !== undefined ? (style.stroke === false ? 'f' : 'B') : 'S'}`)
     this.ops.push('0 g')
   }
   // Curva de Bézier cúbica (arcos de porta, círculos).
-  curve(a: Pt, c1: Pt, c2: Pt, b: Pt, style: StrokeStyle) { this.style(style); this.ops.push(`${this.p(a)} m ${this.p(c1)} ${this.p(c2)} ${this.p(b)} c S`) }
+  curve(a: Pt, c1: Pt, c2: Pt, b: Pt, style: StrokeStyle) { this.record({kind:'curve',a,c1,c2,b,style}); this.style(style); this.ops.push(`${this.p(a)} m ${this.p(c1)} ${this.p(c2)} ${this.p(b)} c S`) }
   circle(center: Pt, r: number, style: StrokeStyle) {
+    this.record({kind:'circle',center,r,style})
     const k = 0.5523 * r, { x, y } = center
     this.style(style)
     this.ops.push(`${this.p({ x: x + r, y })} m ${this.p({ x: x + r, y: y + k })} ${this.p({ x: x + k, y: y + r })} ${this.p({ x, y: y + r })} c ${this.p({ x: x - k, y: y + r })} ${this.p({ x: x - r, y: y + k })} ${this.p({ x: x - r, y })} c ${this.p({ x: x - r, y: y - k })} ${this.p({ x: x - k, y: y - r })} ${this.p({ x, y: y - r })} c ${this.p({ x: x + k, y: y - r })} ${this.p({ x: x + r, y: y - k })} ${this.p({ x: x + r, y })} c S`)
   }
   // Texto com tamanho em mm (altura do corpo); align relativo ao ponto; rotação em graus (sentido horário na folha).
-  text(at: Pt, text: string, sizeMm: number, { align = 'left', font = 'regular', rotate = 0, gray = 0 }: { align?: 'left' | 'center' | 'right'; font?: Font; rotate?: number; gray?: number } = {}) {
+  text(at: Pt, text: string, sizeMm: number, { align = 'left', font = 'regular', rotate = 0, gray = 0, key }: PdfTextOptions = {}) {
     if (!text) return
+    this.record({kind:'text',at,text,sizeMm,options:{align,font,rotate,gray,key}})
     const shift = align === 'left' ? 0 : textWidthMm(text, sizeMm, font) * (align === 'center' ? .5 : 1)
     const rad = -rotate * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad)
     const origin = { x: at.x - shift * Math.cos(rotate * Math.PI / 180), y: at.y - shift * Math.sin(rotate * Math.PI / 180) }

@@ -16,14 +16,14 @@ export function cloneWithNewIds(project: Project, newId: () => string = generate
   }
   collect(project)
   // Troca só os trechos que são exatamente IDs conhecidos (também dentro de "a/b" e "tipo:id").
-  const remap = (text: string) => text.replace(/[^:/]+/g, part => idMap.get(part) ?? part)
+  const remap = (text: string) => text.replace(/[^:/|]+/g, part => idMap.get(part) ?? part)
   const freeText = new Set([...(keepFileIds ? ['fileId'] : []), 'displayId', 'name', 'label', 'description', 'note', 'notes', 'value', 'technicalItemKey', 'originalFileName', 'tags', 'customWallType','customProfile','customMaterial','highSide','lowSide', 'mimeType', 'createdAt'])
   const walk = (value: unknown, key?: string): unknown => {
     if (key && freeText.has(key)) return value
     if (typeof value === 'string') return remap(value)
     if (Array.isArray(value)) return value.map(item => walk(item))
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([name, item]) =>
-      (name === 'labelOffsets'||name==='planLabelOffsets'||name==='planPreferences') && item && typeof item === 'object' ? [name, Object.fromEntries(Object.entries(item).map(([offsetKey, offset]) => [remap(offsetKey), walk(offset)]))] : [name, walk(item, name)]))
+      (name === 'labelOffsets'||name==='planLabelOffsets'||name==='planPreferences'||name==='sheetLayouts'||name==='labelOverrides') && item && typeof item === 'object' ? [name, Object.fromEntries(Object.entries(item).map(([offsetKey, offset]) => [remap(offsetKey), walk(offset)]))] : [name, walk(item, name)]))
     return value
   }
   return { project: walk(project) as Project, idMap }

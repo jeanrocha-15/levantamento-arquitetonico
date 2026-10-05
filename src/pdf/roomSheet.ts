@@ -1,3 +1,4 @@
+import { objectLayerVisible } from './sheetDecorations'
 import { roomLabelPosition } from './labelPosition'
 import { columnProfilePoints } from '../structural'
 import { buildPlanRoom,planBounds } from '../floorPlan'
@@ -23,12 +24,12 @@ export function roomExtent(room:Room,layers=defaultPdfLayers) {const shape=build
 
 export const isApproximate = (survey: ReturnType<typeof buildRoomGeometry>) => survey.perimeter.calculations.length > 0 || !survey.perimeter.closed
 
-export interface SheetInput { project: Project; floor?: Floor; room: Room; option: SheetOption; date?: Date; layers?:PdfLayers; responsible?:string }
+export interface SheetInput { project: Project; floor?: Floor; room: Room; option: SheetOption; date?: Date; layers?:PdfLayers; responsible?:string; preview?:boolean; layout?:import('./sheetSettings').SheetLayout }
 // Monta a prancha. Retorna também o transformador metro→mm, usado nos testes de escala.
-export function drawRoomSheet({ project, floor, room, option, date = new Date(),layers=defaultPdfLayers,responsible }: SheetInput) {
-  const extent = roomExtent(room,layers)
+export function drawRoomSheet({ project, floor, room, option, date = new Date(),layers=defaultPdfLayers,responsible,preview,layout }: SheetInput) {
+  const extent = roomExtent(room,layout?defaultPdfLayers:layers)
   const problem = fitMessage(extent, option)
-  if (problem) throw new Error(problem)
+  if (problem && !preview) throw new Error(problem)
   const unit = project.measurementUnit ?? 'm'
   const f = (value: number | null | undefined) => formatMeasurement(value, unit)
   const paper = paperSize(option), area = drawingArea(option)
@@ -54,21 +55,21 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
     // Comprimento da parede, do lado de fora.
     const middle = { x: (a.x + b.x) / 2 - inside.x * (thickness + 5), y: (a.y + b.y) / 2 - inside.y * (thickness + 5) }
     let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; if (angle > 90) angle -= 180; else if (angle < -90) angle += 180
-    if(layers.measurements||layers.ids) page.text({ x: middle.x, y: middle.y + 1.2 }, [layers.ids?segment.wall.label:'',layers.measurements?(segment.measured?f(segment.wall.lengthM):'sem medida'):''].filter(Boolean).join('  '), 3, { align: 'center', rotate: angle, font: 'bold' })
+    if(layers.measurements||layers.ids) page.text({ x: middle.x, y: middle.y + 1.2 }, [layers.ids?segment.wall.label:'',layers.measurements?(segment.measured?f(segment.wall.lengthM):'sem medida'):''].filter(Boolean).join('  '), 3, { align: 'center', rotate: angle, font: 'bold',key:`${room.id}|wall:${segment.wall.id}` })
   }
   if (layers.walls && perimeter.allMeasured && !perimeter.endpointsMeet && perimeter.segments.length >= 3) page.line(toPaper(perimeter.segments.at(-1)!.end), toPaper(perimeter.segments[0].start), { width: .2, dash: [1, 1], gray: .4 })
   // Ângulos internos.
-  for (const corner of layers.measurements?perimeter.corners:[]) {
+  for (const corner of layers.measurements?layers.annotations!==false?perimeter.corners:[]:[]) {
     const at = toPaper(corner.position)
     const label = { x: at.x + corner.labelDirection.x * 7, y: at.y + corner.labelDirection.y * 7 }
     const text = validAngle(corner.angleDegrees) ? `${corner.angleSource === 'calculated' ? '~' : ''}${degrees.format(corner.angleDegrees)}°${corner.angleSource === 'assumed' ? ' (pres.)' : ''}` : '?°'
-    page.text({ x: label.x, y: label.y + 1 }, text, 2.4, { align: 'center', gray: .2 })
+    page.text({ x: label.x, y: label.y + 1 }, text, 2.4, { align: 'center', gray: .2,key:`${room.id}|angle:${corner.id}` })
   }
   // Diagonais medidas.
-  for (const diagonal of layers.measurements?perimeter.diagonalSegments:[]) {
+  for (const diagonal of layers.measurements?layers.annotations!==false?perimeter.diagonalSegments:[]:[]) {
     const a = toPaper(diagonal.start), b = toPaper(diagonal.end)
     page.line(a, b, { width: .15, dash: [1.5, 1.2], gray: .45 })
-    page.text({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 1 }, `${diagonal.label} ${f(diagonal.diagonal.lengthM)}`, 2.2, { align: 'center', gray: .4 })
+    page.text({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 1 }, `${diagonal.label} ${f(diagonal.diagonal.lengthM)}`, 2.2, { align: 'center', gray: .4,key:`${room.id}|diagonal:${diagonal.diagonal.id}`,rotate:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI })
   }
   // Portas, janelas e vãos.
   for (const placement of layers.openings?openings.placements:[]) {
@@ -87,29 +88,29 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
     } else if (door?.kind === 'sliding') { page.line(door.leaf[0], door.leaf[1], medium); if (door.track) page.line(door.track[0], door.track[1], { width: .15, dash: [1, 1] }) }
     const textAt = { x: (a.x + b.x) / 2 + inside.x * 6, y: (a.y + b.y) / 2 + inside.y * 6 }
     const lines = [layers.ids?opening.label:'', ...(layers.measurements?[`${formatMeasurement(opening.widthM, unit, false)} × ${f(opening.heightM)}`, ...(opening.type === 'window' ? [`P=${f(opening.sillHeightM)}`] : []), `${f(opening.offsetM)} de ${placement.reference.label}`]:[])].filter(Boolean)
-    lines.forEach((line, index) => page.text({ x: textAt.x, y: textAt.y + index * 3 }, line, index === 0 ? 2.4 : 2.1, { align: 'center', font: index === 0 ? 'bold' : 'regular', gray: index === 0 ? 0 : .3 }))
+    lines.forEach((line, index) => page.text({ x: textAt.x, y: textAt.y + index * 3 }, line, index === 0 ? 2.4 : 2.1, { align: 'center', font: index === 0 ? 'bold' : 'regular', gray: index === 0 ? 0 : .3,key:`${room.id}|opening:${opening.id}:line:${index}`,rotate:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI }))
   }
   const piFaces=buildWallFaces(internalWalls.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])))
   // Paredes internas (PI).
   for (const item of internalWalls.placements) {
     const a = toPaper(item.start), b = toPaper(item.end)
     for(const face of layers.walls?piFaces.get(item.internalWall.id) ?? []:[]) page.line(toPaper(face.start),toPaper(face.end),{width:.35})
-    if(layers.measurements||layers.ids) page.text({ x: (a.x + b.x) / 2 + 2, y: (a.y + b.y) / 2 - 1.5 }, [layers.ids?item.internalWall.label:'',layers.measurements?f(item.internalWall.lengthM):''].filter(Boolean).join(' '), 2.3)
+    if(layers.measurements||layers.ids) page.text({ x: (a.x + b.x) / 2 + 2, y: (a.y + b.y) / 2 - 1.5 }, [layers.ids?item.internalWall.label:'',layers.measurements?f(item.internalWall.lengthM):''].filter(Boolean).join(' '), 2.3,{key:`${room.id}|internal:${item.internalWall.id}`,rotate:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI})
   }
   // Objetos.
   for (const item of buildObjectPlacements(room.objects ?? [], [...perimeter.segments,...internalWalls.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))])) {
-    if(!(item.object.category==='structural'?layers.structural:item.object.category==='equipment'?layers.equipment:layers.objects))continue
+    if(!(objectLayerVisible(item.object,layers)))continue
     const bounds = item.bounds.map(toPaper), c = toPaper(item.center)
     const profile=item.object.structuralKind==='column'?columnProfilePoints(item.object.profile,item.widthM,item.heightM,item.object.dimensions.webM??0,item.object.dimensions.flangeM??0):undefined
     if(profile){const rad=(item.object.rotationDegrees??0)*Math.PI/180;page.polyline(profile.map(([x,y])=>toPaper({x:item.center.x+x*Math.cos(rad)-y*Math.sin(rad),y:item.center.y+x*Math.sin(rad)+y*Math.cos(rad)})),{width:.2,gray:.3},true)}
     else if (item.object.shape === 'circle') page.circle(c, mmOnPaper(item.widthM, option.scale) / 2, { width: .2, gray: .3 })
     else if (item.object.shape === 'line') page.line(bounds[0], bounds[bounds.length - 1], { width: .3, gray: .3 })
     else page.polyline(bounds, { width: .2, gray: .3 }, true)
-    drawObjectCaption(page,c,[layers.ids?item.object.displayId:'',layers.names?item.object.name:'',layers.measurements?objectDimensionsLabel(item.object,unit):''],item.widthM*k)
+    drawObjectCaption(page,c,[layers.ids?item.object.displayId:'',layers.names?item.object.name:'',layers.measurements?objectDimensionsLabel(item.object,unit):''],item.widthM*k,`${room.id}|object:${item.object.id}`,item.object.rotationDegrees??0)
   }
-  const roomLabel=[layers.ids?room.displayId:'',layers.names?room.name:''].filter(Boolean).join(' — '),visibleObjects=buildPlanRoom(room).objects.filter(o=>o.object.category==='structural'?layers.structural:o.object.category==='equipment'?layers.equipment:layers.objects)
-  if(roomLabel)page.text(roomLabelPosition(vertices,visibleObjects.map(o=>o.bounds.map(toPaper)),roomLabel),roomLabel,3,{align:'center',font:'bold'})
-  drawTitleBlock(page,{project,floor,title:`${room.displayId ?? ''} — ${room.name}`,option,date,responsible,notes:[`Pé-direito: ${f(room.ceilingHeightM)}`,...(isApproximate(extent.survey)?['Geometria aproximada baseada no levantamento de campo.']:[])]})
+  const roomLabel=[layers.ids?room.displayId:'',layers.names?room.name:''].filter(Boolean).join(' — '),visibleObjects=buildPlanRoom(room).objects.filter(o=>objectLayerVisible(o.object,layers))
+  if(roomLabel)page.text(roomLabelPosition(vertices,visibleObjects.map(o=>o.bounds.map(toPaper)),roomLabel),roomLabel,3,{align:'center',font:'bold',key:`${room.id}|room`})
+  drawTitleBlock(page,{project,floor,title:`${room.displayId ?? ''} — ${room.name}`,option,date,responsible,layout,notes:[`Pé-direito: ${f(room.ceilingHeightM)}`,...(isApproximate(extent.survey)?['Geometria aproximada baseada no levantamento de campo.']:[])]})
   return { page, toPaper, extent, label: optionLabel(option) }
 }
 
