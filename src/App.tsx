@@ -44,13 +44,10 @@ import { syncStatusLong, syncStatusShort } from './sync'
 function RoomTree({ rooms, selected, onSelect, onAdd, onDelete }: { rooms: Room[]; selected: string; onSelect: (id: string) => void; onAdd: (parent: string) => void; onDelete: (room: Room) => void }) {
   return <ul className="room-tree">{rooms.map(room => <li key={room.id}><div className="tree-row"><button className={selected === room.id ? 'selected' : ''} onClick={() => onSelect(room.id)}>▧ <span>{room.displayId && <small className="room-display-id">{room.displayId} </small>}{room.name || 'Sem nome'}</span></button><ItemMenu label={room.name || 'Ambiente sem nome'} actions={[{ label: 'Adicionar subambiente', onSelect: () => onAdd(room.id) }, { label: 'Excluir', danger: true, onSelect: () => onDelete(room) }]}/></div>{room.subrooms.length > 0 && <RoomTree rooms={room.subrooms} selected={selected} onSelect={onSelect} onAdd={onAdd} onDelete={onDelete}/>}</li>)}</ul>
 }
-const initialFloorId = id()
-const initialRoom = createRoom('Sala', initialFloorId)
-const initialFloor = { id: initialFloorId, name: 'Térreo', rooms: [initialRoom] }
-const initialProject: Project = ensureProjectMetadata({ id: id(), name: 'Meu levantamento', floors: [initialFloor], relationships: [] })
+const initialProject: Project = ensureProjectMetadata({ id: id(), name: 'Novo projeto', floors: [], relationships: [] })
 
 export default function App() {
-  const { workspace, setWorkspace, ready, loadError, status, saveError, retrySave, syncStatus, syncPending, syncMessage, retrySync, photoPending, conflicts, dismissConflict } = useLocalWorkspace({ projects: [initialProject], projectId: initialProject.id, floorId: initialFloor.id, roomId: initialRoom.id })
+  const { workspace, setWorkspace, ready, loadError, status, saveError, retrySave, syncStatus, syncPending, syncMessage, retrySync, photoPending, conflicts, dismissConflict } = useLocalWorkspace({ projects: [initialProject], projectId: initialProject.id, floorId: '', roomId: '' })
   const { projects, projectId, floorId, roomId } = workspace
   const workspaceRef = useRef(workspace); workspaceRef.current = workspace
   // Desfazer: só dados dos projetos (não a navegação). Incluir/excluir foto reinicia o histórico,
