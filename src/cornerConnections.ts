@@ -1,5 +1,6 @@
 import type { Room, RoomPlacement, SpatialConnection, SpatialSide } from './models'
-import { buildPlanRoom, normalizeRotation, rotatePoint, worldPoint } from './floorPlan'
+import { buildPlanRoom, alignRoomAnchors, putRoomPlacement } from './floorPlan'
+import type { Project } from './models'
 import { buildWallFaces } from './wallFaces'
 
 export function cornerAnchor(room:Room,side:SpatialSide) {
@@ -9,11 +10,18 @@ export function cornerAnchor(room:Room,side:SpatialSide) {
   if(!segment?.measured)return undefined
   const faces=buildWallFaces(shape.survey.perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room.wallMeasurementFace??'internal'})))
   const ranges=faces.get(segment.wall.id)??[],position=side.face==='external'?(ranges[1]?.end??corner.position):(ranges[0]?.end??corner.position)
-  return {position,angle:Math.atan2(segment.direction.y,segment.direction.x)*180/Math.PI}
+  // The interior bisector follows the clockwise perimeter beginning at entry wall A.
+  // Both incident walls and the actual corner angle participate, including reflex corners.
+  const sign=side.face==='external'?-1:1
+  const direction={x:corner.labelDirection.x*sign,y:corner.labelDirection.y*sign}
+  return {position,angle:Math.atan2(direction.y,direction.x)*180/Math.PI}
 }
 export function cornerSnap(connection:SpatialConnection,source:Room,target:Room,anchor:RoomPlacement):RoomPlacement|undefined {
   const a=cornerAnchor(source,connection.a),b=cornerAnchor(target,connection.b)
   if(!a||!b)return undefined
-  const rotation=normalizeRotation(anchor.rotation+a.angle-b.angle+(connection.orientation==='inverted'?0:180)),sp=worldPoint(a.position,anchor),tp=rotatePoint(b.position,rotation)
-  return {roomId:target.id,floorId:target.floorId,x:sp.x-tp.x,y:sp.y-tp.y,rotation}
+  return alignRoomAnchors(target,anchor,a,b,connection.orientation!=='inverted')
+}
+export function confirmCornerConnection(project:Project,connection:SpatialConnection,anchor:RoomPlacement,preview:RoomPlacement):Project {
+ const positioned=putRoomPlacement(putRoomPlacement(project,anchor),preview)
+ return {...positioned,spatialConnections:[...project.spatialConnections??[],connection]}
 }

@@ -12,6 +12,12 @@ export function inverseWorldPoint(p:Point,placement:RoomPlacement):Point {return
 export const normalOf=(a:Point,b:Point)=>{const length=pointDistance(a,b)||1;return {x:-(b.y-a.y)/length,y:(b.x-a.x)/length}}
 export const midpoint=(a:Point,b:Point)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2})
 export const normalizeRotation=(angle:number)=>((angle%360)+360)%360
+// One rigid transform for previews, snaps and saved placements. Angles are local.
+export function alignRoomAnchors(room:Room,anchor:RoomPlacement,source:{position:Point;angle:number},target:{position:Point;angle:number},opposite=true):RoomPlacement {
+ const rotation=normalizeRotation(anchor.rotation+source.angle-target.angle+(opposite?180:0))
+ const world=worldPoint(source.position,anchor),rotated=rotatePoint(target.position,rotation)
+ return {roomId:room.id,floorId:room.floorId,x:world.x-rotated.x,y:world.y-rotated.y,rotation}
+}
 export function floorRooms(project:Project,floorId:string) {return flattenRooms(project.floors.find(f=>f.id===floorId)?.rooms ?? [])}
 export function floorPlacements(project:Project,floorId:string) {const ids=new Set(floorRooms(project,floorId).map(r=>r.id));return (project.roomPlacements ?? []).filter(p=>p.floorId===floorId && ids.has(p.roomId))}
 export function cleanRoomPlacements(project:Project):Project {if(!project.roomPlacements)return project;const rooms=new Map(projectRooms(project).map(r=>[r.id,r]));return {...project,roomPlacements:project.roomPlacements.filter(p=>rooms.get(p.roomId)?.floorId===p.floorId)}}
