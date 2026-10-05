@@ -83,6 +83,6 @@ export function fitObjectsSketch(geometry: ReturnType<typeof buildPerimeter>, pl
 }
 
 export function attachmentSegments(room:Room) {
-  const perimeter=buildPerimeter(room.walls,room.corners,room.diagonals)
+  const perimeter=buildPerimeter(room.walls,room.corners,room.diagonals,{adjust:room.geometryAdjustment,closed:room.perimeterClosed})
   return [...perimeter.segments,...buildInternalWallLayout(perimeter,room.walls,room.corners,room.internalWalls).placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))]
 }

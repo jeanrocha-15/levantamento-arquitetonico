@@ -8,7 +8,7 @@ import { generateId } from './domain'
 import { ensureProjectMetadata } from './projectMetadata'
 import { isMeasurementUnit } from './units'
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 export { DATABASE_NAME, storageScope } from './database'
 const BASE_JOURNAL = 'campo-autosave-journal-v1', BASE_LOCAL = 'campo-local-workspace-v1'
 export const JOURNAL_KEY = `${BASE_JOURNAL}${scope}`
@@ -28,7 +28,7 @@ export function createSnapshot(data: WorkspaceData): StoredWorkspace {
 export function readSnapshot(value: unknown): StoredWorkspace {
   if (!value || typeof value !== 'object') throw new Error('O arquivo local de projetos é inválido. Os dados existentes foram preservados.')
   const record = value as StoredWorkspace
-  if (record.schemaVersion !== 1 && record.schemaVersion !== 2 && record.schemaVersion !== 3 && record.schemaVersion !== 4 && record.schemaVersion !== 5 && record.schemaVersion !== 6 && record.schemaVersion !== 7 && record.schemaVersion !== 8 && record.schemaVersion !== SCHEMA_VERSION) throw new Error('Esta versão dos dados locais não é compatível com a aplicação. Os projetos existentes foram preservados.')
+  if (record.schemaVersion !== 1 && record.schemaVersion !== 2 && record.schemaVersion !== 3 && record.schemaVersion !== 4 && record.schemaVersion !== 5 && record.schemaVersion !== 6 && record.schemaVersion !== 7 && record.schemaVersion !== 8 && record.schemaVersion !== 9 && record.schemaVersion !== SCHEMA_VERSION) throw new Error('Esta versão dos dados locais não é compatível com a aplicação. Os projetos existentes foram preservados.')
   const number = (value: unknown) => value === null || typeof value === 'number'
   const strings = (value: unknown): value is string[] => Array.isArray(value) && value.length === 2 && value.every(item => typeof item === 'string')
   const entity = (value: unknown): value is { id: string } => !!value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string'
@@ -40,9 +40,10 @@ export function readSnapshot(value: unknown): StoredWorkspace {
     && ['walls', 'corners', 'diagonals', 'openings', 'internalWalls', 'pendingItems', 'subrooms'].every(key => Array.isArray(room[key as keyof Room]))
     && !!room.openingCounters && ['door', 'window', 'gap'].every(key => counter(room.openingCounters[key as keyof typeof room.openingCounters]))
     && counter(room.internalWallCounter)
-    && room.walls.every(wall => entity(wall) && typeof wall.label === 'string' && number(wall.lengthM) && (wall.thickness === undefined || number(wall.thickness)) && (wall.wallType === undefined || ['masonry', 'drywall', 'concrete', 'glass', 'wood', 'partition', 'other'].includes(wall.wallType)) && (wall.customWallType === undefined || typeof wall.customWallType === 'string') && (!wall.sharedWallReference || typeof wall.sharedWallReference.roomId === 'string' && typeof wall.sharedWallReference.wallId === 'string' && (wall.sharedWallReference.placementSide===undefined || ['same','opposite'].includes(wall.sharedWallReference.placementSide))))
+    && ['geometryAdjustment','perimeterClosed'].every(key=>room[key as 'geometryAdjustment']===undefined||typeof room[key as 'geometryAdjustment']==='boolean')
+    && room.walls.every(wall => (wall.surveyPlacement===undefined || !!wall.surveyPlacement && ['diagonal','orthogonal','angle','closure'].includes(wall.surveyPlacement.method) && (wall.surveyPlacement.side===undefined || [-1,1].includes(wall.surveyPlacement.side)) && ['referenceVertexId','diagonalId'].every(key=>wall.surveyPlacement![key as 'diagonalId']===undefined || typeof wall.surveyPlacement![key as 'diagonalId']==='string') && (wall.surveyPlacement.angleDegrees===undefined || number(wall.surveyPlacement.angleDegrees))) && entity(wall) && typeof wall.label === 'string' && number(wall.lengthM) && (wall.thickness === undefined || number(wall.thickness)) && (wall.wallType === undefined || ['masonry', 'drywall', 'concrete', 'glass', 'wood', 'partition', 'other'].includes(wall.wallType)) && (wall.customWallType === undefined || typeof wall.customWallType === 'string') && (!wall.sharedWallReference || typeof wall.sharedWallReference.roomId === 'string' && typeof wall.sharedWallReference.wallId === 'string' && (wall.sharedWallReference.placementSide===undefined || ['same','opposite'].includes(wall.sharedWallReference.placementSide))))
     && room.corners.every(corner => entity(corner) && strings(corner.wallIds) && number(corner.angleDegrees) && [null, 'assumed', 'informed', 'calculated'].includes(corner.angleSource))
-    && room.diagonals.every(diagonal => entity(diagonal) && strings(diagonal.cornerIds) && number(diagonal.lengthM))
+    && room.diagonals.every(diagonal => entity(diagonal) && (diagonal.checkOnly===undefined || typeof diagonal.checkOnly==='boolean') && (diagonal.vertexIds===undefined || strings(diagonal.vertexIds)) && strings(diagonal.cornerIds) && number(diagonal.lengthM))
     && room.openings.every(opening => entity(opening) && typeof opening.label === 'string' && ['door', 'window', 'gap'].includes(opening.type) && typeof opening.wallId === 'string' && typeof opening.referenceCornerId === 'string' && [opening.widthM, opening.heightM, opening.sillHeightM, opening.offsetM].every(number))
     && room.internalWalls.every(wall => entity(wall) && typeof wall.label === 'string' && number(wall.lengthM) && number(wall.orientationDegrees) && !!wall.origin && (
       wall.origin.type === 'perimeter_wall' ? typeof wall.origin.wallId === 'string' && typeof wall.origin.referenceCornerId === 'string' && number(wall.origin.distanceM)

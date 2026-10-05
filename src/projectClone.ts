@@ -23,7 +23,7 @@ export function cloneWithNewIds(project: Project, newId: () => string = generate
     if (typeof value === 'string') return remap(value)
     if (Array.isArray(value)) return value.map(item => walk(item))
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([name, item]) =>
-      name === 'labelOffsets' && item && typeof item === 'object' ? [name, Object.fromEntries(Object.entries(item).map(([offsetKey, offset]) => [remap(offsetKey), offset]))] : [name, walk(item, name)]))
+      (name === 'labelOffsets'||name==='planLabelOffsets'||name==='planPreferences') && item && typeof item === 'object' ? [name, Object.fromEntries(Object.entries(item).map(([offsetKey, offset]) => [remap(offsetKey), walk(offset)]))] : [name, walk(item, name)]))
     return value
   }
   return { project: walk(project) as Project, idMap }

@@ -34,7 +34,7 @@ export function resolveDiagonalAngles(walls: Wall[], original: Corner[], diagona
     }
     const existing = calculations.find(item => item.cornerId === corner.id)
     if (existing) {
-      if (Math.abs(existing.angleDegrees - angle) > tolerance.angleDifferenceWarningDegrees) message(diagnostic, 'Diagonais produzem estimativas diferentes para o mesmo canto. A primeira estimativa permanece na visualização, sem média; verifique as medidas informadas.')
+      if (Math.abs(existing.angleDegrees - angle) > tolerance.angleDifferenceWarningDegrees) message(diagnostic, 'Diagonais produzem estimativas diferentes para o mesmo canto. Os valores originais permanecem registrados; confira os resíduos da solução geométrica.')
       return
     }
     visualCorners[index] = { ...corner, angleDegrees: angle, angleSource: 'calculated' }
@@ -47,6 +47,8 @@ export function resolveDiagonalAngles(walls: Wall[], original: Corner[], diagona
     const previousCount = calculations.length
     diagonals.forEach((diagonal, diagonalIndex) => {
       const diagnostic = diagnostics[diagonalIndex]
+      if(diagonal.checkOnly){message(diagnostic,'Diagonal de conferência: não participa da solução geométrica.');return}
+      if(diagonal.vertexIds){return}
       const from = original.findIndex(corner => corner.id === diagonal.cornerIds[0])
       const to = original.findIndex(corner => corner.id === diagonal.cornerIds[1])
       if (from < 0 || to < 0 || from === to) {

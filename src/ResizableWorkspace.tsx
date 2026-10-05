@@ -1,0 +1,8 @@
+import { useRef,useState } from 'react'
+import type { CSSProperties,ReactNode } from 'react'
+const KEY='campo-sketch-panel-ratio-v1'
+export default function ResizableWorkspace({children,disabled=false,className=''}:{children:ReactNode;disabled?:boolean;className?:string}) {
+ const [ratio,setRatio]=useState(()=>{try{const n=Number(localStorage.getItem(KEY));return Number.isFinite(n)&&n>=20&&n<=80?n:45}catch{return 45}}),root=useRef<HTMLDivElement>(null),drag=useRef(false)
+ const save=(value:number)=>{const next=Math.max(20,Math.min(80,value));setRatio(next);try{localStorage.setItem(KEY,String(next))}catch{/* Visual preference only. */}}
+ return <div ref={root} className={`workspace resizable-workspace ${disabled?'resize-disabled':''} ${className}`} style={{'--form-ratio':`${ratio}%`} as CSSProperties}>{children}{!disabled&&<div className="workspace-divider" role="separator" aria-label="Redimensionar formulário e croqui" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(ratio)} tabIndex={0} onKeyDown={e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();save(ratio+(e.key==='ArrowLeft'?-5:5))}}} onPointerDown={e=>{drag.current=true;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(!drag.current||!root.current)return;const r=root.current.getBoundingClientRect();setRatio(Math.max(20,Math.min(80,(e.clientX-r.left)/r.width*100)))}} onPointerUp={e=>{save(ratio);drag.current=false;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}} onPointerCancel={()=>{drag.current=false}}/>}</div>
+}

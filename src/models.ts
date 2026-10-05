@@ -1,10 +1,11 @@
 export type MeasurementSource = 'measured' | 'informed' | 'assumed' | 'calculated'
 // Todos os comprimentos são armazenados em metros.
 export type WallType = 'masonry' | 'drywall' | 'concrete' | 'glass' | 'wood' | 'partition' | 'other'
-export interface Wall { id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string; placementSide?: 'opposite' | 'same' } }
+export interface SurveyPlacement { method:'diagonal'|'orthogonal'|'angle'|'closure'; referenceVertexId?:string; diagonalId?:string; side?:1|-1; angleDegrees?:number }
+export interface Wall { surveyPlacement?:SurveyPlacement; id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string; placementSide?: 'opposite' | 'same' } }
 export type AngleSource = 'assumed' | 'informed' | 'calculated'
 export interface Corner { id: string; wallIds: [string, string]; angleDegrees: number | null; angleSource: AngleSource | null }
-export interface Diagonal { id: string; cornerIds: [string, string]; lengthM: number | null; source: 'measured' }
+export interface Diagonal { checkOnly?:boolean; vertexIds?:[string,string]; id: string; cornerIds: [string, string]; lengthM: number | null; source: 'measured' }
 // method: 'diagonal' (lei dos cossenos/diagonais) ou 'closure' (fechamento do perímetro com as paredes medidas).
 export interface AngleCalculation { cornerId: string; angleDegrees: number; angleSource: 'calculated'; diagonalIds: string[]; method?: 'diagonal' | 'closure' }
 export type OpeningType = 'door' | 'window' | 'gap'
@@ -54,9 +55,9 @@ export interface Photo {
   linkedEntityType?: PhotoEntityType; linkedEntityId?: string;
   roofId?: string; tags: string[]; note?: string; fileId: string; mimeType: string; size: number
 }
-export interface Room { id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; structuralCounters?: { column: number; beam: number }; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; sketchLabelScale?: number; wallMeasurementFace?: 'internal' | 'external'; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
+export interface Room { geometryAdjustment?:boolean; perimeterClosed?:boolean; id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; structuralCounters?: { column: number; beam: number }; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; planLabelOffsets?:LabelOffsets; sketchLabelScale?: number; wallMeasurementFace?: 'internal' | 'external'; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
-export type LabelOffsets = Record<string, { dx: number; dy: number }>
+export type LabelOffsets = Record<string, { dx: number; dy: number; rotation?:number }>
 export interface Floor { id: string; name: string; rooms: Room[] }
 // Metros e graus, apenas na Planta Geral. Nunca são coordenadas do croqui individual.
 export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number; locked?: boolean }

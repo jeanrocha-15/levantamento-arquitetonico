@@ -94,12 +94,12 @@ export function roomChecklist(room: Room, project: Project, survey?: RoomGeometr
   const corners = getCorners(room.walls, room.corners)
   room.diagonals.forEach((diagonal, index) => {
     require(positive(diagonal.lengthM), diagonal.id, 'lengthM', `Diagonal ${index + 1}: valor ausente ou inválido.`)
-    require(diagonal.cornerIds[0] !== diagonal.cornerIds[1] && diagonal.cornerIds.every(cornerId => corners.some(corner => corner.id === cornerId)), diagonal.id, 'cornerIds', `Diagonal ${index + 1}: referência inexistente ou cantos iguais.`)
+    require(diagonal.vertexIds?diagonal.vertexIds[0]!==diagonal.vertexIds[1]&&diagonal.vertexIds.every(id=>id==='origin'||room.walls.some(w=>w.id===id)):diagonal.cornerIds[0] !== diagonal.cornerIds[1] && diagonal.cornerIds.every(cornerId => corners.some(corner => corner.id === cornerId)), diagonal.id, 'cornerIds', `Diagonal ${index + 1}: referência inexistente ou cantos iguais.`)
   })
   geometry.diagonalChecks.forEach(check => {
     if (issues.some(item => item.elementId === check.id && item.id.startsWith('auto:'))) return
     // Notes describing the calculation's assumptions are not missing survey measurements.
-    check.messages.filter(message => !message.startsWith('Geometria aproximada.') && !message.startsWith('Para este quadrilátero') && !message.startsWith('Os cantos são vizinhos') && !message.startsWith('Dados insuficientes para calcular novos ângulos')).forEach((message, index) => warning(check.id, `diagonal-check-${index}`, `Diagonal: ${message}`))
+    check.messages.filter(message => !message.startsWith('Diagonal de conferência:') && !message.startsWith('Geometria aproximada.') && !message.startsWith('Para este quadrilátero') && !message.startsWith('Os cantos são vizinhos') && !message.startsWith('Dados insuficientes para calcular novos ângulos')).forEach((message, index) => warning(check.id, `diagonal-check-${index}`, `Diagonal: ${message}`))
   })
   ;(room.objects ?? []).forEach(object=> {
     if(object.category==='structural') {if(!object.attachedWallId && (object.position.xM==null || object.position.yM==null)) require(false,object.id,'position','Posição do elemento estrutural não definida.');return}

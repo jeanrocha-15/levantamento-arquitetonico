@@ -1,7 +1,8 @@
+import { readableRotation } from './labelRotation'
 import { columnProfilePoints } from './structural'
 import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
-import { useSketchLabelScale } from './sketchDrag'
+import { Movable,useSketchLabelScale } from './sketchDrag'
 import { useMeasurements } from './Measurement'
 import type { buildPerimeter } from './geometry'
 import type { ObjectPlacement } from './roomObjects'
@@ -52,11 +53,11 @@ export default function RoomObjectSketch({ placements, geometry, selectedId, onS
         {object.shape !== 'line' && <rect x={-Math.max(width, 16) / 2} y={-Math.max(height, 16) / 2} width={Math.max(width, 16)} height={Math.max(height, 16)} fill="transparent"/>}
         {object.shape === 'rectangle' && !profilePoints && <rect className="object-shape" x={-width / 2} y={-height / 2} width={width} height={height} rx="2"/>}
         {profilePoints && <polygon className="object-shape" points={profilePoints.map(p=>p.join(',')).join(' ')}/>}
-        {object.structuralKind==='beam' && <text x={0} y={height/2+12} textAnchor="middle" className="object-label">{object.profile}</text>}
+        {object.structuralKind==='beam' && <text transform={`rotate(${readableRotation(object.rotationDegrees??0)-(object.rotationDegrees??0)} 0 ${height/2+12})`} x={0} y={height/2+12} textAnchor="middle" className="object-label">{object.profile}</text>}
         {object.shape === 'circle' && <circle className="object-shape" r={width / 2}/>}
         {object.shape === 'line' && <><line className="object-hit" x1={-width / 2} x2={width / 2} y1="0" y2="0"/><line className="object-shape" x1={-width / 2} x2={width / 2} y1="0" y2="0"/></>}
       </g>
-      {(codeFits || selectedId === object.id) && <text transform={labelScale === 1 ? undefined : `translate(${point.x} ${point.y}) scale(${labelScale}) translate(${-point.x} ${-point.y})`} className="object-label" x={point.x} y={point.y + (object.shape === 'line' ? -8 : dimensionsFit ? -3 : 3)} textAnchor="middle" pointerEvents="none">{object.displayId}{dimensionsFit && <tspan x={point.x} dy="13">{label}</tspan>}</text>}
+      {(codeFits || selectedId === object.id) && <Movable id={`object:${object.id}`} angle={object.rotationDegrees??0} box={{x:point.x-width/2,y:point.y-10,width:Math.max(width,object.displayId.length*6),height:dimensionsFit?28:16}} title={object.displayId}><text className="object-label" x={point.x} y={point.y + (object.shape === 'line' ? -8 : dimensionsFit ? -3 : 3)} textAnchor="middle" pointerEvents="none">{object.displayId}{dimensionsFit && <tspan x={point.x} dy="13">{label}</tspan>}</text></Movable>}
       {moving && <text className="object-move-readout" x={point.x} y={point.y - Math.max(height, 16) / 2 - 6} textAnchor="middle" pointerEvents="none">X {format(live.xM)} · Y {format(live.yM)}</text>}
     </g>
   })}</g>

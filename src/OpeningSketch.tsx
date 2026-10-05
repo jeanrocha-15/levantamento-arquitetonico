@@ -1,3 +1,4 @@
+import { lineRotation } from './labelRotation'
 import { useMeasurements } from './Measurement'
 import type { buildPerimeter } from './geometry'
 import { useMemo } from 'react'
@@ -38,7 +39,7 @@ export default function OpeningSketch({ layout, geometry, extraReservations = []
       {opening.type === 'window' && <g className="window-pane">{[-2, 2].map(offset => <line key={offset} x1={start.x + normal.x * offset} y1={start.y + normal.y * offset} x2={end.x + normal.x * offset} y2={end.y + normal.y * offset}/>)}</g>}
       <line className="opening-leader" x1={anchor.x} y1={anchor.y} x2={x + offset.dx} y2={y + 4 + offset.dy}/>
       <circle className="opening-anchor" cx={anchor.x} cy={anchor.y} r="2"/>
-      <Movable id={`opening:${opening.id}`} box={box} title={opening.label}><text x={x} y={y} textAnchor="middle" className="opening-label"><tspan x={x} className="opening-code">{opening.label}</tspan><tspan x={x} dy="12">{dimensions}</tspan>{opening.type === 'window' && <tspan x={x} dy="12">P={format(opening.sillHeightM)}</tspan>}<tspan x={x} dy="12" className="opening-reference">{referenceText}</tspan></text></Movable>
+      <Movable id={`opening:${opening.id}`} angle={lineRotation(start,end)} box={box} title={opening.label}><text x={x} y={y} textAnchor="middle" className="opening-label"><tspan x={x} className="opening-code">{opening.label}</tspan><tspan x={x} dy="12">{dimensions}</tspan>{opening.type === 'window' && <tspan x={x} dy="12">P={format(opening.sillHeightM)}</tspan>}<tspan x={x} dy="12" className="opening-reference">{referenceText}</tspan></text></Movable>
     </g>
   })}</g>
 }
