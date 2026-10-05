@@ -42,10 +42,11 @@ export function composeSheet(project:Project,source:SheetSource,layout:SheetLayo
  const option=sheetOption(layout),layers=layout.visibleLayers,rooms=projectRooms(project),k=1000/option.scale
  const drawing=source.kind==='room'?drawRoomSheet({project,room:source.room,floor:project.floors.find(f=>f.id===source.room.floorId),option,layers,preview:true,layout,responsible:layout.responsible}):source.kind==='plan'?drawPlanSheet({project,floor:source.floor,option,layers,preview:true,layout,responsible:layout.responsible}):drawRoofSheet({project,roof:source.roof,option,layers,preview:true,layout,responsible:layout.responsible})
  const raw=drawing.page,covered=new Set(source.kind==='room'?[source.room.id]:source.kind==='plan'?(project.roomPlacements??[]).filter(p=>p.floorId===source.floor.id).map(p=>p.roomId):[])
- const active=(project.wallCompatibilities??[]).filter(c=>c.strategy!=='original'&&project.spatialConnections?.some(link=>link.id===c.connectionId&&!link.assemblyDetached)&&c.valueM!=null&&Number.isFinite(c.valueM)&&c.valueM>0&&[c.a,c.b].some(s=>covered.has(s.roomId))&&[c.a,c.b].every(s=>rooms.find(r=>r.id===s.roomId)?.walls.some(w=>w.id===s.wallId)))
+ const allActive=(project.wallCompatibilities??[]).filter(c=>c.strategy!=='original'&&project.spatialConnections?.some(link=>link.id===c.connectionId&&!link.assemblyDetached)&&c.valueM!=null&&Number.isFinite(c.valueM)&&c.valueM>0&&[c.a,c.b].every(s=>rooms.find(r=>r.id===s.roomId)?.walls.some(w=>w.id===s.wallId)))
+ const active=allActive.filter(c=>[c.a,c.b].some(s=>covered.has(s.roomId)))
  const legendLines:string[]=[]
- active.forEach((c,index)=>{
- const ref=`N${index+1}`,parts=[c.a,c.b].map(side=>{const room=rooms.find(r=>r.id===side.roomId)!,wall=room.walls.find(w=>w.id===side.wallId)!;return `${room.name} ${wall.label}: ${formatMeasurement(wall.lengthM,project.measurementUnit??'m')}`})
+ active.forEach(c=>{
+ const ref=`N${allActive.indexOf(c)+1}`,parts=[c.a,c.b].map(side=>{const room=rooms.find(r=>r.id===side.roomId)!,wall=room.walls.find(w=>w.id===side.wallId)!;return `${room.name} ${wall.label}: ${formatMeasurement(wall.lengthM,project.measurementUnit??'m')}`})
  legendLines.push(...wrapText(`${ref} — ${parts.join(' / ')} · Valor adotado: ${formatMeasurement(c.valueM,project.measurementUnit??'m')}`,Math.min(180,raw.widthMm-20)-8,2.5))
  for(const side of [c.a,c.b]){if(!covered.has(side.roomId))continue;const room=rooms.find(r=>r.id===side.roomId)!,segment=buildPlanRoom(room).survey.perimeter.segments.find(s=>s.wall.id===side.wallId);if(!segment)continue;let mid={x:(segment.start.x+segment.end.x)/2,y:(segment.start.y+segment.end.y)/2};if(source.kind==='plan'){const placement=project.roomPlacements?.find(p=>p.roomId===room.id);if(!placement)continue;mid=worldPoint(mid,placement)}const at=drawing.toPaper(mid);raw.section='drawing';raw.text({x:at.x+2,y:at.y-2},ref,2.5,{font:'bold',key:`${room.id}|compatibility:${c.id}`})}
  })
