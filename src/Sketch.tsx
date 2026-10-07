@@ -96,7 +96,7 @@ export default function Sketch({ project, room, survey, focusElementId, selected
         </g>
       })}
       <InternalWallSketch labels={internalWallLabels} geometry={geometry} referenceFace={room?.wallMeasurementFace ?? 'internal'} ranges={new Map(openingLayout.wallLayouts.map(w=>[w.wallId,w.solidRanges]))} onSelect={variant!=='report' && onFocusField ? id=>onFocusField(id,'lengthM') : undefined}/>
-      <OpeningSketch layout={openingLayout} geometry={geometry} extraReservations={openingReservations} onSelect={onFocusField && variant !== 'report' ? openingId => { setSelection(undefined); setExpanded(false); onFocusField(openingId, 'widthM') } : undefined}/>
+      <OpeningSketch referenceFace={room?.wallMeasurementFace} layout={openingLayout} geometry={geometry} extraReservations={openingReservations} onSelect={onFocusField && variant !== 'report' ? openingId => { setSelection(undefined); setExpanded(false); onFocusField(openingId, 'widthM') } : undefined}/>
       {geometry.corners.map(corner => {
         const position = geometry.project(corner.position)
         const label = labelLayout.positions.get(`angle:${corner.id}`)!; const cornerLabel = labelLayout.positions.get(`corner:${corner.id}`)!

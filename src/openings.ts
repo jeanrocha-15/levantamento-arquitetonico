@@ -37,7 +37,7 @@ export interface WallOpeningLayout { wallId: string; solidRanges: { start: Point
 export function buildOpeningLayout(perimeter: Perimeter, walls: Wall[], corners: Corner[], openings: Opening[], internal:InternalWallPlacement[] = []) {
   const checks: OpeningCheck[] = openings.map(opening => ({ id: opening.id, messages: [], drawable: false }))
   const internalWalls=internal.map(p=>p.internalWall)
-  const internalSegments=internal.map(p=>{const length=Math.hypot(p.end.x-p.start.x,p.end.y-p.start.y);return {wall:{id:p.internalWall.id,label:p.internalWall.label,lengthM:p.internalWall.lengthM},start:p.start,end:p.end,direction:{x:(p.end.x-p.start.x)/length,y:(p.end.y-p.start.y)/length},measured:p.internalWall.lengthM!=null && Number.isFinite(p.internalWall.lengthM) && p.internalWall.lengthM>0}})
+  const internalSegments=internal.map(p=>{const length=Math.hypot(p.end.x-p.start.x,p.end.y-p.start.y);return {wall:{id:p.internalWall.id,label:p.internalWall.label,lengthM:p.internalWall.lengthM,thickness:p.internalWall.thicknessM},start:p.start,end:p.end,direction:{x:(p.end.x-p.start.x)/length,y:(p.end.y-p.start.y)/length},measured:p.internalWall.lengthM!=null && Number.isFinite(p.internalWall.lengthM) && p.internalWall.lengthM>0}})
   const wallLayouts: WallOpeningLayout[] = [...perimeter.segments,...internalSegments].map(segment => {
     const placements: OpeningPlacement[] = []
     const pointAt = (distance: number): Point => ({ x: segment.start.x + segment.direction.x * distance, y: segment.start.y + segment.direction.y * distance })

@@ -6,7 +6,8 @@ export interface AssemblyPick extends SpatialSide { elementId:string }
 export function assemblyAnchor(room:Room,type:FitType,side:SpatialSide,shape=buildPlanRoom(room)) {
  if(type==='corner') {const corner=shape.survey.perimeter.corners.find(c=>c.id===side.elementId);if(!corner||!side.wallId||!corner.wallIds.includes(side.wallId))return undefined;const wall=shape.survey.perimeter.segments.find(s=>s.wall.id===side.wallId);if(!wall?.measured)return undefined;return {position:corner.position,angle:Math.atan2(wall.direction.y,wall.direction.x)*180/Math.PI}}
  const f=planFeature(shape,type==='opening'?'opening_connection':'shared_wall',side.elementId);if(!f)return undefined
- return {position:midpoint(f.start,f.end),angle:Math.atan2(f.end.y-f.start.y,f.end.x-f.start.x)*180/Math.PI}
+ const wall=type==='opening'?shape.survey.perimeter.segments.find(s=>s.wall.id===room.openings.find(o=>o.id===side.elementId)?.wallId):undefined
+ return {position:midpoint(f.start,f.end),angle:wall?Math.atan2(wall.direction.y,wall.direction.x)*180/Math.PI:Math.atan2(f.end.y-f.start.y,f.end.x-f.start.x)*180/Math.PI}
 }
 // The saved temporary placement is the preview. No local geometry or scale changes.
 export function assemblyPlacement(project:Project,connection:SpatialConnection,anchor:RoomPlacement):RoomPlacement|undefined {
@@ -27,9 +28,9 @@ export function transformAssembly(placements:RoomPlacement[],from:RoomPlacement,
 export function openingAvailable(project:Project,roomId:string,id:string,otherRoomId:string,otherId?:string) {
  const room=project.floors.flatMap(f=>floorRooms(project,f.id)).find(r=>r.id===roomId),opening=room?.openings.find(o=>o.id===id)
  if(!opening)return false
- if(opening.connectedOpeningId && opening.connectedOpeningId!==otherId)return false
+ if(opening.connectedOpeningId && (!!otherId && opening.connectedOpeningId!==otherId))return false
  if(opening.connectedRoomId && opening.connectedRoomId!==otherRoomId)return false
- return !(project.spatialConnections??[]).some(c=>c.type==='opening'&&c.a.elementId&&c.b.elementId&&[c.a,c.b].some(s=>s.roomId===roomId&&s.elementId===id)&&![c.a,c.b].some(s=>s.roomId===otherRoomId&&s.elementId===otherId))
+ return !(project.spatialConnections??[]).some(c=>c.type==='opening'&&c.a.elementId&&c.b.elementId&&[c.a,c.b].some(s=>s.roomId===roomId&&s.elementId===id)&&![c.a,c.b].some(s=>s.roomId===otherRoomId&&(!otherId||s.elementId===otherId)))
 }
 export function snapPlacement(project:Project,desired:RoomPlacement,gridStep=.1,excluded=new Set([desired.roomId])) {
  const rooms=floorRooms(project,desired.floorId),room=rooms.find(r=>r.id===desired.roomId);if(!room)return desired
@@ -51,3 +52,8 @@ export function snapPlacement(project:Project,desired:RoomPlacement,gridStep=.1,
  return {...desired,x:Math.round(desired.x/gridStep)*gridStep,y:Math.round(desired.y/gridStep)*gridStep}
 }
 export function wallPlanningValue(project:Project,roomId:string,wallId:string) {return project.wallCompatibilities?.find(c=>c.strategy!=='original'&&((c.a.roomId===roomId&&c.a.wallId===wallId)||(c.b.roomId===roomId&&c.b.wallId===wallId)))?.valueM}
+
+export function fitOpeningOptions(project:Project,room:Room,otherRoomId:string,otherId?:string){
+ const other=project.floors.flatMap(f=>floorRooms(project,f.id)).find(r=>r.id===otherRoomId)?.openings.find(o=>o.id===otherId)
+ return room.openings.map(o=>({id:o.id,label:`${o.label} — ${{door:'Porta',window:'Janela',gap:'Vão'}[o.type]}`,disabled:!openingAvailable(project,room.id,o.id,otherRoomId,otherId)||!!other&&other.type!==o.type}))
+}

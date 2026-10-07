@@ -20,7 +20,7 @@ export function planFeature(shape:PlanRoom,type:RoomRelationship['type'],id?:str
  if(!source || (type==='shared_wall' && (!segment?.measured || !(wall?.lengthM && wall.lengthM>0))))return undefined
  const storedThickness=wall?.thickness??internal?.thicknessM??0,thickness=Number.isFinite(storedThickness)?Math.max(0,storedThickness):0,n=normalOf(source.start,source.end),offset=(shape.room.wallMeasurementFace==='external'?1:-1)*thickness/2
  const shift=(p:Point)=>({x:p.x+n.x*offset,y:p.y+n.y*offset})
- if(type==='shared_wall'&&segment){const faces=shape.uncutFaces.get(segment.wall.id);if(faces?.length===2){const start=midpoint(faces[0].start,faces[1].start),end=midpoint(faces[0].end,faces[1].end);return {start,end,length:pointDistance(start,end),thickness}}}
+
  return {start:shift(source.start),end:shift(source.end),length:pointDistance(source.start,source.end),thickness}
 }
 const transformed=(f:PlanFeature,p:RoomPlacement)=>({...f,start:worldPoint(f.start,p),end:worldPoint(f.end,p)})

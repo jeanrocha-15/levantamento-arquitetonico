@@ -43,7 +43,19 @@ export function buildWallFaces(segments:FaceSegment[],ranges?:Map<string,FaceRan
         if(distance(from,to)>1e-8) faces.push({start:from,end:to})
       }
     }
+    if(h) for(let rangeIndex=0;rangeIndex<solids.length;rangeIndex++) for(const end of ['start','end'] as const){
+      const point=solids[rangeIndex][end],atEndpoint=distance(point,segment[end])<1e-8,neighbor=segments[(index+(end==='start'?-1:1)+segments.length)%segments.length],neighborEnd=end==='start'?'end':'start'
+      const connected=atEndpoint&&neighbor&&neighbor!==segment&&half(neighbor)>0&&distance(point,neighbor[neighborEnd])<1e-7&&(ranges?.get(neighbor.id)??[{start:neighbor.start,end:neighbor.end}]).some(r=>distance(r[neighborEnd],point)<1e-8)
+      if(!connected)faces.push({start:shift(point,d,faceOffset(segment,1)),end:shift(point,d,faceOffset(segment,-1))})
+    }
     result.set(segment.id,faces)
   })
   return result
+}
+
+// Window frame in real coordinates, shared by SVG and vector PDF.
+export function windowFaces(segment:FaceSegment,start:Point,end:Point):FaceRange[] {
+ const d=direction(segment),h=half(segment);if(!h)return [{start,end}]
+ const inner=faceOffset(segment,1),outer=faceOffset(segment,-1)
+ return [0,1/3,2/3,1].map(t=>({start:shift(start,d,inner+(outer-inner)*t),end:shift(end,d,inner+(outer-inner)*t)}))
 }

@@ -44,7 +44,11 @@ export function buildPerimeter(walls: Wall[], savedCorners: Corner[] = [], diago
   })
   const seed = [{ x: 0, y: 0 }, ...segments.map(segment => segment.end)]
   const useSolver=walls.length>0&&(walls.some(w=>w.surveyPlacement)||diagonals.some(d=>!d.checkOnly)||!!options.adjust)
-  const solution=useSolver?solveSurveyGeometry(walls,originalCorners,diagonals,seed,options):undefined
+  // Legacy rooms already closed by their original angles retain that closure intent.
+  let baselineHeading=0,baselineX=0,baselineY=0
+  walls.forEach((w,i)=>{if(i)baselineHeading+=(180-(originalCorners[i-1]?.angleDegrees??90))*Math.PI/180;baselineX+=Math.cos(baselineHeading)*(w.lengthM??1);baselineY+=Math.sin(baselineHeading)*(w.lengthM??1)})
+  const closedIntent=options.closed||walls.length>=3&&Math.hypot(baselineX,baselineY)<geometryTolerance.numericalEpsilon
+  const solution=useSolver?solveSurveyGeometry(walls,originalCorners,diagonals,seed,{...options,closed:closedIntent}):undefined
   if(solution){segments=segments.map((s,i)=>{const start=solution.points[i],end=solution.points[i+1],length=Math.hypot(end.x-start.x,end.y-start.y)||1;return {...s,start,end,direction:{x:(end.x-start.x)/length,y:(end.y-start.y)/length}}});cursor=segments.at(-1)!.end;heading=Math.atan2(segments.at(-1)!.direction.y,segments.at(-1)!.direction.x);encounters.forEach((c,i)=>{const solved=solution.visualAngles[i];if(c.angleSource!=='informed'||options.adjust){if(Math.abs((c.angleDegrees??90)-solved)>.00001||c.angleSource==='calculated'||options.adjust){encounters[i]={...c,angleDegrees:solved,angleSource:'calculated'};const previous=calculations.findIndex(x=>x.cornerId===c.id);const calculation={cornerId:c.id,angleDegrees:solved,angleSource:'calculated' as const,diagonalIds:diagonals.filter(d=>!d.checkOnly).map(d=>d.id),method:'diagonal' as const};if(previous>=0)calculations[previous]=calculation;else calculations.push(calculation)}}})}
   const residuals=solution?.residuals??[]
   const points = [{ x: 0, y: 0 }, ...segments.map(segment => segment.end)]

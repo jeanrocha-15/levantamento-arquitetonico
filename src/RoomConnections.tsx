@@ -13,7 +13,7 @@ export function OpeningConnection({ opening, roomId, rooms, onChange, onCreate, 
     {target && <label>Abertura correspondente (opcional)<select value={opening.connectedOpeningId ?? ''} onChange={event => {
       const candidate=target.openings.find(o=>o.id===event.target.value)
       if(candidate && (!Object.is(candidate.widthM,opening.widthM)||!Object.is(candidate.heightM,opening.heightM)) && !window.confirm(`Usar as dimensões de ${target.name} / ${candidate.label} nas duas pontas? As futuras alterações de largura e altura serão sincronizadas.`))return
-      onChange({ connectedOpeningId: event.target.value || undefined,...(candidate?{label:candidate.label}:{}) })
+      onChange({ connectedOpeningId: event.target.value || undefined,...(candidate?{label:candidate.label,originOpeningId:candidate.originOpeningId??candidate.id}:{originOpeningId:undefined}) })
     }}><option value="">Não definida</option>{available.map(item => <option key={item.id} value={item.id}>{item.label} · Parede {target.walls.find(wall => wall.id === item.wallId)?.label ?? '?'}</option>)}</select></label>}
     <p className="angle-help">Uma abertura física possui uma única contraparte do mesmo tipo. Largura e altura vinculadas são sincronizadas. Posição e croquis continuam independentes.</p>
   </div></details>

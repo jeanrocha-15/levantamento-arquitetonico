@@ -53,7 +53,7 @@ export function prepareOpeningConnections(project:Project,previous?:Project):Pro
   const candidates=[...openings.values()].sort((a,b)=>Number(changed(a))-Number(changed(b)))
   for(const initial of candidates) {
     const o=openings.get(initial.id)!,target=o.connectedRoomId && rooms.find(r=>r.id===o.connectedRoomId),peer=o.connectedOpeningId && openings.get(o.connectedOpeningId)
-    if(!o.connectedOpeningId)continue
+    if(!o.connectedOpeningId){if(o.connectedRoomId)openings.set(o.id,{...o,originOpeningId:o.originOpeningId??o.id});continue}
     if(paired.has(o.id))continue
     if(!target || target.id===owners.get(o.id) || !peer || owners.get(peer.id)!==target.id || !availableCounterpart(o,owners.get(o.id)!,peer) || consumed.has(peer.id) || consumed.has(o.id)) {
       openings.set(o.id,{...o,connectedOpeningId:undefined});continue
@@ -67,6 +67,8 @@ export function prepareOpeningConnections(project:Project,previous?:Project):Pro
     if(newlyLinked && !preserveOriginal) {const reference=changed(a)?b:a;a={...a,widthM:reference.widthM,heightM:reference.heightM};b={...b,widthM:reference.widthM,heightM:reference.heightM}}
     else if(aEdited&&!bEdited)b={...b,widthM:a.widthM,heightM:a.heightM}
     else if(bEdited&&!aEdited)a={...a,widthM:b.widthM,heightM:b.heightM}
+    const origin=a.originOpeningId===a.id||a.originOpeningId===b.id?a.originOpeningId:b.originOpeningId===a.id||b.originOpeningId===b.id?b.originOpeningId:beforeA?.originOpeningId??beforeB?.originOpeningId??project.spatialConnections?.find(c=>c.type==='opening'&&[c.a.elementId,c.b.elementId].includes(a.id)&&[c.a.elementId,c.b.elementId].includes(b.id))?.a.elementId??(newlyLinked&&changed(a)?b.id:a.id)
+    a={...a,originOpeningId:origin};b={...b,originOpeningId:origin}
     openings.set(a.id,a);openings.set(b.id,b);consumed.add(a.id);consumed.add(b.id);paired.add(a.id);paired.add(b.id)
   }
   return mapProjectRooms(project,r=>({...r,openings:r.openings.map(o=>openings.get(o.id)!)}))

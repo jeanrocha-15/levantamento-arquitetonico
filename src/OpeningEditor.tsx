@@ -27,7 +27,7 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
     const reference = getWallReferences(room.walls, room.corners, wall.id)[0]
     const sequence = nextProjectOpeningSequence(project,type)
     const opening: Opening = { id: id(), label: openingLabel(type, sequence), type, wallId: wall.id, referenceCornerId: reference.id, offsetM: null, widthM: null, heightM: null, sillHeightM: null, ...(type === 'door' ? { doorKind: 'hinged' as const } : {}) }
-    const next={ ...room, openings: [...room.openings, counterpart?{...opening,label:counterpart.label,widthM:counterpart.widthM,heightM:counterpart.heightM,connectedRoomId:targetRoomId,connectedOpeningId:counterpart.id}:opening], openingCounters: { ...room.openingCounters, [type]: sequence } }
+    const next={ ...room, openings: [...room.openings, counterpart?{...opening,label:counterpart.label,widthM:counterpart.widthM,heightM:counterpart.heightM,connectedRoomId:targetRoomId,connectedOpeningId:counterpart.id,originOpeningId:counterpart.originOpeningId??counterpart.id}:opening], openingCounters: { ...room.openingCounters, [type]: sequence } }
     onChange(next)
     setTypeFilter(type); setWallFilter('')
   }

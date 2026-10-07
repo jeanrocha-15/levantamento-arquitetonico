@@ -1,3 +1,5 @@
+import { windowFaces } from '../wallFaces'
+import { openingFrame } from '../openingFrame'
 import { objectLayerVisible } from './sheetDecorations'
 import { roomLabelPosition } from './labelPosition'
 import { columnProfilePoints } from '../structural'
@@ -76,9 +78,7 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
     const { opening } = placement
     const a = toPaper(placement.start), b = toPaper(placement.end)
     const inside = insideNormal(a, b, center)
-    const jamb = (p: Pt) => page.line({ x: p.x - inside.x * 1.5, y: p.y - inside.y * 1.5 }, { x: p.x + inside.x * 1.5, y: p.y + inside.y * 1.5 }, medium)
-    jamb(a); jamb(b)
-    if (opening.type === 'window') [-.6, .6].forEach(offset => page.line({ x: a.x + inside.x * offset, y: a.y + inside.y * offset }, { x: b.x + inside.x * offset, y: b.y + inside.y * offset }, thin))
+    if(opening.type==='window')windowFaces(openingFrame(perimeter,placement,room.wallMeasurementFace),placement.start,placement.end).forEach(f=>page.line(toPaper(f.start),toPaper(f.end),thin))
     const door = doorDrawing(opening, a, b, { x: (b.x - a.x) / Math.hypot(b.x - a.x, b.y - a.y), y: (b.y - a.y) / Math.hypot(b.x - a.x, b.y - a.y) })
     if (door?.kind === 'hinged') {
       const [hinge, open] = door.leaf, other = Math.hypot(a.x - hinge.x, a.y - hinge.y) < 1e-6 ? b : a

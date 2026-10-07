@@ -1,3 +1,5 @@
+import { windowFaces } from './wallFaces'
+import { openingFrame } from './openingFrame'
 import { lineRotation } from './labelRotation'
 import { useMeasurements } from './Measurement'
 import type { buildPerimeter } from './geometry'
@@ -7,7 +9,7 @@ import { Movable, useOffsetLookup } from './sketchDrag'
 import { dimensionLine, insideNormal } from './dimensions'
 import type { buildOpeningLayout, LabelBox } from './openings'
 
-export default function OpeningSketch({ layout, geometry, extraReservations = [], onSelect, showDimensions = true }: { layout: ReturnType<typeof buildOpeningLayout>; geometry: ReturnType<typeof buildPerimeter>; extraReservations?: LabelBox[]; onSelect?: (openingId: string) => void; showDimensions?: boolean }) {
+export default function OpeningSketch({ layout, geometry, extraReservations = [], onSelect, showDimensions = true, referenceFace='internal' }: { layout: ReturnType<typeof buildOpeningLayout>; geometry: ReturnType<typeof buildPerimeter>; extraReservations?: LabelBox[]; onSelect?: (openingId: string) => void; showDimensions?: boolean;referenceFace?:'internal'|'external' }) {
   const { unit, format } = useMeasurements()
   const labels = useMemo(() => placeOpeningLabels(layout.placements, geometry.project, extraReservations, unit), [layout, geometry, extraReservations, unit])
   const offsetOf = useOffsetLookup()
@@ -16,10 +18,9 @@ export default function OpeningSketch({ layout, geometry, extraReservations = []
     const offset = offsetOf(`opening:${placement.opening.id}`)
     const { opening, direction, reference } = placement
     const start = geometry.project(placement.start), end = geometry.project(placement.end)
-    const normal = { x: -direction.y, y: direction.x }
     const dimensions = `${format(opening.widthM, false)} × ${format(opening.heightM)}`
     const referenceText = `${format(opening.offsetM)} de ${reference.label}`
-    const jamb = (point: { x: number; y: number }) => <line x1={point.x - normal.x * 5} y1={point.y - normal.y * 5} x2={point.x + normal.x * 5} y2={point.y + normal.y * 5}/>
+
     const door = doorDrawing(opening, start, end, direction)
     const operation = doorDescription(opening)
     return <g key={opening.id} className={`svg-opening opening-${opening.type}`} role="img" aria-label={`${openingNames[opening.type]} ${opening.label}, parede ${placement.wall.label}, ${dimensions}${opening.type === 'window' ? `, peitoril ${format(opening.sillHeightM)}` : ''}, ${referenceText} até a borda mais próxima${operation ? `. ${operation}` : ''}`}>
@@ -35,8 +36,7 @@ export default function OpeningSketch({ layout, geometry, extraReservations = []
         if (!line) return null
         return <g className="svg-dimension"><line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>{line.ticks.map(([a, b], index) => <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>)}<text x={line.text.x} y={line.text.y} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${line.angle} ${line.text.x} ${line.text.y})`}>{format(opening.offsetM)}</text></g>
       })()}
-      <g className="opening-jambs">{jamb(start)}{jamb(end)}</g>
-      {opening.type === 'window' && <g className="window-pane">{[-2, 2].map(offset => <line key={offset} x1={start.x + normal.x * offset} y1={start.y + normal.y * offset} x2={end.x + normal.x * offset} y2={end.y + normal.y * offset}/>)}</g>}
+      {opening.type === 'window' && <g className="window-pane">{windowFaces(openingFrame(geometry,placement,referenceFace),placement.start,placement.end).map((line,i)=>{const a=geometry.project(line.start),b=geometry.project(line.end);return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>})}</g>}
       <line className="opening-leader" x1={anchor.x} y1={anchor.y} x2={x + offset.dx} y2={y + 4 + offset.dy}/>
       <circle className="opening-anchor" cx={anchor.x} cy={anchor.y} r="2"/>
       <Movable id={`opening:${opening.id}`} angle={lineRotation(start,end)} box={box} title={opening.label}><text x={x} y={y} textAnchor="middle" className="opening-label"><tspan x={x} className="opening-code">{opening.label}</tspan><tspan x={x} dy="12">{dimensions}</tspan>{opening.type === 'window' && <tspan x={x} dy="12">P={format(opening.sillHeightM)}</tspan>}<tspan x={x} dy="12" className="opening-reference">{referenceText}</tspan></text></Movable>

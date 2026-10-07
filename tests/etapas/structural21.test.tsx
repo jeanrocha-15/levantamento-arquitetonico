@@ -30,11 +30,11 @@ describe('Etapa 21 — faces físicas, estruturas e telhados',()=>{
   it.each([90,45,82,270])('une offsets no canto de %s graus sem alterar as medidas',angle=>{
     const room=roomFrom('Teste',[4,3,2],[angle,90,90]);room.walls.forEach(w=>w.thickness=.2);const before=structuredClone(room);const geometry=buildRoomGeometry(room);
     const faces=buildWallFaces(geometry.perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:'internal'})));
-    const a=faces.get(room.walls[0].id)!,b=faces.get(room.walls[1].id)!;expect(a).toHaveLength(2);expect(a[0].end.x).toBeCloseTo(b[0].start.x);expect(a[1].end.x).toBeCloseTo(b[1].start.x);expect(a[1].end.y).toBeCloseTo(b[1].start.y);expect(a[0].start.y).toBeCloseTo(0);expect(a[1].start.y).toBeCloseTo(-.2);expect(room).toEqual(before);
+    const a=faces.get(room.walls[0].id)!,b=faces.get(room.walls[1].id)!;expect(a).toHaveLength(3);expect(a[0].end.x).toBeCloseTo(b[0].start.x);expect(a[1].end.x).toBeCloseTo(b[1].start.x);expect(a[1].end.y).toBeCloseTo(b[1].start.y);expect(a[0].start.y).toBeCloseTo(0);expect(a[1].start.y).toBeCloseTo(-.2);expect(room).toEqual(before);
   })
   it('muda somente o lado da espessura ao escolher face externa',()=>{
     const segment={id:'A',start:{x:0,y:0},end:{x:4,y:0},thickness:.15};const internal=buildWallFaces([{...segment,referenceFace:'internal'}]).get('A')!,external=buildWallFaces([{...segment,referenceFace:'external'}]).get('A')!;
-    expect(internal.map(f=>f.start.y)).toEqual([0,-.15]);expect(external.map(f=>f.start.y)).toEqual([.15,0]);expect(segment.end.x).toBe(4);
+    expect(internal.slice(0,2).map(f=>f.start.y)).toEqual([0,-.15]);expect(external.slice(0,2).map(f=>f.start.y)).toEqual([.15,0]);expect(segment.end.x).toBe(4);
     expect(buildWallFaces([{...segment,thickness:undefined}]).get('A')).toEqual([{start:segment.start,end:segment.end}]);
   })
   it('preserva a referência de paredes simples e une espessuras diferentes em trechos colineares',()=>{
@@ -46,11 +46,11 @@ describe('Etapa 21 — faces físicas, estruturas e telhados',()=>{
   it('interrompe as duas faces para portas, janelas e vãos',()=>{
     const {room}=fixture();room.walls[0].thickness=.2;opening(room,{label:'P01',type:'door',offsetM:.2,widthM:.5});opening(room,{label:'J01',type:'window',offsetM:1.2,widthM:.5,sillHeightM:1});opening(room,{label:'V01',type:'gap',offsetM:2.2,widthM:.5});const g=buildRoomGeometry(room);
     const faces=buildWallFaces(g.perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness})),new Map(g.openings.wallLayouts.map(w=>[w.wallId,w.solidRanges]))).get(room.walls[0].id)!;
-    expect(faces).toHaveLength(8);expect(faces.every(f=>!(f.start.x<1.4&&f.end.x>1.4))).toBe(true);
+    expect(faces).toHaveLength(16);expect(faces.every(f=>!(f.start.x<1.4&&f.end.x>1.4))).toBe(true);
   })
   it('representa abertura em PI e corta suas duas faces',()=>{
     const {room}=fixture();room.internalWalls=[{id:'pi',label:'PI01',origin:{type:'perimeter_wall',wallId:room.walls[0].id,referenceCornerId:room.corners[3].id,distanceM:1},lengthM:2,orientationDegrees:45,thicknessM:.1}];const item=opening(room,{label:'P01',type:'door',wallId:'pi',referenceCornerId:'pi:start',offsetM:.4,widthM:.8});const g=buildRoomGeometry(room);expect(g.openings.checks.find(c=>c.id===item.id)?.drawable).toBe(true);
-    const placement=g.internalWalls.placements[0];const faces=buildWallFaces([{id:'pi',start:placement.start,end:placement.end,thickness:.1}],new Map(g.openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])));expect(faces.get('pi')).toHaveLength(4);
+    const placement=g.internalWalls.placements[0];const faces=buildWallFaces([{id:'pi',start:placement.start,end:placement.end,thickness:.1}],new Map(g.openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])));expect(faces.get('pi')).toHaveLength(8);
   })
   it('gera PIL/VIG estáveis e não reutiliza números excluídos',()=>{
     const {room}=fixture();const column=createStructuralObject(room,'column'),beam=createStructuralObject(room,'beam');expect(column.displayId).toBe('PIL-001');expect(beam.displayId).toBe('VIG-001');room.structuralCounters={column:1,beam:1};room.objects=[];expect(nextStructuralSequence(room,'column')).toBe(1);expect(createStructuralObject(room,'beam').displayId).toBe('VIG-001');

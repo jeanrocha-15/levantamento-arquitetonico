@@ -1,3 +1,4 @@
+import { markAssemblyChanges,promoteDeletedOrigins } from './assemblyChanges'
 import ResizableWorkspace from './ResizableWorkspace'
 import { nextRoomSequence } from './projectMetadata'
 import { nextVisualSequence } from './visualIds'
@@ -156,7 +157,11 @@ export default function App() {
     function options(rooms: Room[], path: string): RoomOption[] { return rooms.flatMap(r => [{ room: r, path: `${path} / ${r.name || 'Sem nome'}` }, ...options(r.subrooms, `${path} / ${r.name || 'Sem nome'}`)]) }
     return options(f.rooms, f.name || 'Sem nome')
   }).filter(item => item.room.id !== roomId)
-  function changeProject(change: (p: Project) => Project) { setProjects(items => items.map(p => p.id === projectId ? cleanRoomPlacements(cleanProjectPhotoLinks(recalculateChecklist(reconcileRelationships(change(p),p)))) : p)) }
+  function changeProject(change: (p: Project) => Project) {
+    const decisions=new Map<string,boolean>()
+    const ask=(message:string)=>{if(!decisions.has(message))decisions.set(message,window.confirm(message));return decisions.get(message)!}
+    setProjects(items => items.map(p => p.id === projectId ? cleanRoomPlacements(cleanProjectPhotoLinks(recalculateChecklist(reconcileRelationships(markAssemblyChanges(promoteDeletedOrigins(change(p),p,ask),p),p)))) : p))
+  }
   function deleteRoom(target: Room) {
     if (!window.confirm(`Excluir “${target.name}” e seus subambientes? As medidas e os vínculos serão removidos.`)) return
     changeProject(p => ({ ...p, floors: p.floors.map(f => ({ ...f, rooms: removeRoom(f.rooms, target.id) })) }))
