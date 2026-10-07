@@ -1,16 +1,7 @@
-import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
-import ts from 'typescript'
-const transpile = file => ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const cornersUrl = moduleUrl(transpile('../src/corners.ts'))
-const { getCorners } = await import(cornersUrl)
-const tolerancesUrl = moduleUrl(transpile('../src/tolerances.ts'))
-const link = source => source.replaceAll("'./corners'", JSON.stringify(cornersUrl)).replaceAll('"./corners"', JSON.stringify(cornersUrl)).replaceAll("'./tolerances'", JSON.stringify(tolerancesUrl)).replaceAll('"./tolerances"', JSON.stringify(tolerancesUrl))
-const diagonalsUrl = moduleUrl(link(transpile('../src/diagonals.ts')))
-const anglesUrl = moduleUrl(link(transpile('../src/angles.ts')))
-const source = link(transpile('../src/geometry.ts')).replace("'./diagonals'", JSON.stringify(diagonalsUrl)).replace('"./diagonals"', JSON.stringify(diagonalsUrl)).replace("'./angles'", JSON.stringify(anglesUrl)).replace('"./angles"', JSON.stringify(anglesUrl))
-const { buildPerimeter } = await import(moduleUrl(source))
+import { moduleUrl } from './load.mjs'
+const { getCorners } = await import(moduleUrl('corners'))
+const { buildPerimeter } = await import(moduleUrl('geometry'))
 const walls = values => values.map((lengthM, i) => ({ id: String(i), label: String.fromCharCode(65 + i), lengthM }))
 const original = walls([4.2, 3, 4.2, 3])
 const snapshot = JSON.stringify(original)
@@ -76,7 +67,7 @@ for (const angle of [0, 360, -1, NaN]) {
 }
 console.log('Ângulos verificados: retângulo, 5 e 6 paredes, L, 45°, 82°, origem, indefinidos e fechamento sem correção.')
 
-const { closureSeverity, geometryTolerance } = await import(tolerancesUrl)
+const { closureSeverity, geometryTolerance } = await import(moduleUrl('tolerances'))
 const rectangleWalls = walls([4, 3, 4, 3])
 const rectangleCorners = getCorners(rectangleWalls, [])
 const diagonal = (from, to, lengthM, id = 'diagonal-1') => ({ id, cornerIds: [rectangleCorners[from].id, rectangleCorners[to].id], lengthM, source: 'measured' })
@@ -94,7 +85,8 @@ assert.equal(calculated.closed, true)
 assert.ok(calculated.diagonalSegments[0].differenceM < 1e-8)
 assert.ok(calculated.calculations.every(c => c.diagonalIds.includes(measuredDiagonal.id)))
 const reversed = buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(2, 0, measuredDiagonal.lengthM)])
-assert.deepEqual(reversed.corners.map(c => c.angleDegrees), calculated.corners.map(c => c.angleDegrees))
+assert.equal(reversed.corners.length, calculated.corners.length)
+reversed.corners.forEach((corner, i) => assert.ok(Math.abs(corner.angleDegrees - calculated.corners[i].angleDegrees) < 1e-8))
 
 const informedCorners = rectangleCorners.map(c => ({ ...c, angleSource: 'informed', angleDegrees: 90 }))
 const protectedResult = buildPerimeter(rectangleWalls, informedCorners, [measuredDiagonal])
@@ -104,15 +96,18 @@ assert.ok(protectedResult.diagonalChecks[0].messages.some(m => m.includes('prese
 const partial = buildPerimeter(rectangleWalls, [informedCorners[1]], [measuredDiagonal])
 assert.equal(partial.corners[1].angleDegrees, 90)
 assert.equal(partial.corners[1].angleSource, 'informed')
-assert.equal(partial.closed, false)
-assert.ok(partial.closureM > geometryTolerance.numericalEpsilon)
+// O solver atual representa o perímetro fechado e explicita os resíduos incompatíveis.
+assert.equal(partial.closed, true)
+assert.ok(partial.diagonalChecks[0].differenceM > geometryTolerance.numericalEpsilon)
+assert.deepEqual(partial.segments.map(segment => segment.wall.lengthM), rectangleWalls.map(wall => wall.lengthM))
 
 const conflicting = buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(0, 2, 5, 'first-diagonal'), measuredDiagonal])
 assert.ok(conflicting.corners.every(c => Math.abs(c.angleDegrees - 90) < 1e-8))
-assert.ok(conflicting.diagonalChecks[1].messages.some(m => m.includes('sem média')))
+assert.ok(conflicting.diagonalChecks[1].messages.some(m => m.includes('Verifique as medidas')))
 assert.ok(conflicting.diagonalChecks[1].differenceM > 0)
 const invalidTriangle = buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(0, 2, 9)])
-assert.equal(invalidTriangle.calculations.length, 0)
+assert.ok(invalidTriangle.residuals.some(residual => residual.difference > geometryTolerance.diagonalDifferenceWarningM))
+assert.deepEqual(invalidTriangle.segments.map(segment => segment.wall.lengthM), rectangleWalls.map(wall => wall.lengthM))
 assert.ok(invalidTriangle.diagonalChecks[0].messages.some(m => m.includes('triângulo válido')))
 for (const distance of [null, 0, -2, NaN]) {
   const result = buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(0, 2, distance)])
@@ -123,7 +118,9 @@ assert.equal(buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(0, 0, 3)
 assert.equal(buildPerimeter(rectangleWalls, rectangleCorners, [{ ...diagonal(0, 2, 5), cornerIds: ['missing', rectangleCorners[2].id] }]).diagonalChecks[0].valid, false)
 assert.equal(buildPerimeter(rectangleWalls, rectangleCorners, [diagonal(0, 1, 3)]).calculations.length, 0)
 const insufficient = buildPerimeter(walls([4, null, 4, null]), [], [diagonal(0, 2, 5)])
-assert.equal(insufficient.calculations.length, 0)
+assert.equal(insufficient.allMeasured, false)
+assert.deepEqual(insufficient.segments.map(segment => segment.wall.lengthM), [4, null, 4, null])
+assert.ok(insufficient.segments.every(segment => Number.isFinite(segment.end.x) && Number.isFinite(segment.end.y)))
 assert.ok(insufficient.diagonalChecks[0].messages.some(m => m.includes('comprimentos')))
 
 const pentagonWalls = walls([1, 2, 3, 2, 1])

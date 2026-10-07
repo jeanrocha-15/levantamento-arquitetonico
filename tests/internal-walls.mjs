@@ -1,24 +1,14 @@
+import ts from 'typescript'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import ts from 'typescript'
-const transpile = file => ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-const unitsUrl = moduleUrl(transpile('../src/units.ts'))
-const cornersUrl = moduleUrl(transpile('../src/corners.ts'))
-const tolerancesUrl = moduleUrl(transpile('../src/tolerances.ts'))
-const link = source => source.replaceAll("'./units'", JSON.stringify(unitsUrl)).replaceAll('"./units"', JSON.stringify(unitsUrl)).replaceAll("'./corners'", JSON.stringify(cornersUrl)).replaceAll('"./corners"', JSON.stringify(cornersUrl)).replaceAll("'./tolerances'", JSON.stringify(tolerancesUrl)).replaceAll('"./tolerances"', JSON.stringify(tolerancesUrl))
-const openingsUrl = moduleUrl(link(transpile('../src/openings.ts')))
-const diagonalsUrl = moduleUrl(link(transpile('../src/diagonals.ts')))
-const anglesUrl = moduleUrl(link(transpile('../src/angles.ts')))
-const geometryUrl = moduleUrl(link(transpile('../src/geometry.ts')).replace("'./diagonals'", JSON.stringify(diagonalsUrl)).replace('"./diagonals"', JSON.stringify(diagonalsUrl)).replace("'./angles'", JSON.stringify(anglesUrl)).replace('"./angles"', JSON.stringify(anglesUrl)))
-const internalWallsUrl = moduleUrl(link(transpile('../src/internalWalls.ts')).replaceAll("'./openings'", JSON.stringify(openingsUrl)).replaceAll('"./openings"', JSON.stringify(openingsUrl)))
-const { getCorners } = await import(cornersUrl)
-const { buildPerimeter } = await import(geometryUrl)
-const { getWallReferences, buildOpeningLayout } = await import(openingsUrl)
-const { internalWallLabel, buildInternalWallLayout, fitInternalWallsSketch, placeInternalWallLabels } = await import(internalWallsUrl)
-const { getSketchLabelReservations } = await import(moduleUrl(link(transpile('../src/sketchLabels.ts'))))
-const { createRoom, id, updateRoom, findRoom } = await import(moduleUrl(transpile('../src/domain.ts')))
+import { moduleUrl } from './load.mjs'
+const { getCorners } = await import(moduleUrl('corners'))
+const { buildPerimeter } = await import(moduleUrl('geometry'))
+const { getWallReferences, buildOpeningLayout } = await import(moduleUrl('openings'))
+const { internalWallLabel, buildInternalWallLayout, fitInternalWallsSketch, placeInternalWallLabels } = await import(moduleUrl('internalWalls'))
+const { getSketchLabelReservations } = await import(moduleUrl('sketchLabels'))
+const { createRoom, id, updateRoom, findRoom } = await import(moduleUrl('domain'))
 const almost = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} ≈ ${expected}`)
 const walls = [2, 4, 2, 4].map((lengthM, index) => ({ id: id(), label: String.fromCharCode(65 + index), lengthM }))
 const corners = getCorners(walls, [])

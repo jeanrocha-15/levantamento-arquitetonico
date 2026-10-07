@@ -1,21 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import assert from 'node:assert/strict'
-import ts from 'typescript'
-const cache = new Map()
-const require = createRequire(import.meta.url)
-function moduleUrl(name) {
-  if (cache.has(name)) return cache.get(name)
-  const file = new URL(`../src/${name}.${existsSync(new URL(`../src/${name}.ts`, import.meta.url)) ? 'ts' : 'tsx'}`, import.meta.url)
-  let source = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
-  source = source.replace(/(['"])\.\/([^'"]+)\1/g, (_, quote, dependency) => JSON.stringify(moduleUrl(dependency)))
-  source = source.replace(/(['"])(react(?:\/jsx-runtime)?)\1/g, (_, quote, dependency) => JSON.stringify(pathToFileURL(require.resolve(dependency)).href))
-  const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-  cache.set(name, url); return url
-}
+import { moduleUrl } from './load.mjs'
 const { createRoom, generateId, updateRoom, wallLabel } = await import(moduleUrl('domain'))
 const { getCorners } = await import(moduleUrl('corners'))
 const { buildPerimeter } = await import(moduleUrl('geometry'))
