@@ -37,7 +37,7 @@ describe('Croqui — rótulos realocáveis', () => {
     const before = svg(room)
     room.labelOffsets = { [`opening:${j01.id}`]: { dx: 30, dy: -20 } }
     const after = svg(room, () => {})
-    expect(after).toMatch(new RegExp(`data-label-key="opening:${j01.id}" transform="translate\\(30 -20\\)"`))
+    expect(after).toMatch(new RegExp(`data-label-key="opening:${j01.id}" transform="translate\\(30 -20\\) rotate\\([^"()]+\\)"`))
     expect(after).not.toEqual(before)
     // Sem deslocamento, nenhum translate é aplicado.
     expect(before).not.toContain('translate(30 -20)')

@@ -1,4 +1,4 @@
-import { useCallback, useEffect,useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { RefObject, TouchEvent, PointerEvent, MouseEvent } from 'react'
 import { SKETCH_BOUNDS } from './sketchDrag'
 
@@ -13,7 +13,7 @@ export function clampView(view: View): View {
 }
 // Aproxima/afasta mantendo fixo o ponto (fx, fy) — frações 0..1 da área visível.
 export function zoomAt(view: View, factor: number, fx = .5, fy = .5): View {
-  const w = view.w / factor, h = view.h / factor
+  const { w, h } = clampView({ ...view, w: view.w / factor })
   return clampView({ w, h, x: view.x + (view.w - w) * fx, y: view.y + (view.h - h) * fy })
 }
 export const panBy = (view: View, dx: number, dy: number): View => clampView({ ...view, x: view.x - dx, y: view.y - dy })
@@ -56,7 +56,25 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
     suppressClick.current = false
   }
   const rect = () => svgRef.current?.getBoundingClientRect()
-  useEffect(()=>{const el=svgRef.current?.parentElement;if(!el||!enabled)return;const wheel=(event:WheelEvent)=>{const box=svgRef.current?.getBoundingClientRect();if(!box)return;event.preventDefault();setView(v=>zoomAt(v,event.deltaY>0?1/1.1:1.1,(event.clientX-box.left)/box.width,(event.clientY-box.top)/box.height))};el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel)},[enabled,svgRef])
+  // Bind to the actual SVG lifecycle, including replacement after loading a project.
+  const bindSvg = useCallback((node: SVGSVGElement | null) => {
+    svgRef.current = node
+    if (!node || !enabled) return
+    const wheel = (event: WheelEvent) => {
+      const box = node.getBoundingClientRect()
+      if (!box.width || !box.height) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (!event.deltaY) return
+      setView(current => zoomAt(current, event.deltaY > 0 ? 1 / 1.1 : 1.1,
+        (event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height))
+    }
+    node.addEventListener('wheel', wheel, { passive: false, capture: true })
+    return () => {
+      node.removeEventListener('wheel', wheel, { capture: true })
+      if (svgRef.current === node) svgRef.current = null
+    }
+  }, [svgRef, enabled])
   const onTouchStart = useCallback((event: TouchEvent) => {
     suppressClick.current = false
     const box = rect(); if (!box?.width) return
@@ -72,7 +90,7 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
     if (g.kind === 'pinch' && event.touches.length === 2) {
       const [a, b] = [event.touches[0], event.touches[1]]
       const scale = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / g.distance
-      const w = g.view.w / scale, h = g.view.h / scale
+      const { w, h } = clampView({ ...g.view, w: g.view.w / scale })
       const fx = ((a.clientX + b.clientX) / 2 - box.left) / box.width, fy = ((a.clientY + b.clientY) / 2 - box.top) / box.height
       setView(clampView({ w, h, x: g.mid.x - fx * w, y: g.mid.y - fy * h }))
     } else if (g.kind === 'pan' && event.touches.length === 1) {
@@ -83,7 +101,7 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
   const onTouchEnd = useCallback((event: TouchEvent) => { if (event.touches.length === 0) gesture.current = undefined; else onTouchStart(event) }, [onTouchStart])
   const zoomed = Math.abs(zoomOf(view)-1) > .01
   return {
-    view, zoomed, zoom: zoomOf(view), viewBox: `${view.x} ${view.y} ${view.w} ${view.h}`,
+    bindSvg, view, zoomed, zoom: zoomOf(view), viewBox: `${view.x} ${view.y} ${view.w} ${view.h}`,
     handlers: { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd, onPointerDownCapture, onPointerMoveCapture, onPointerUpCapture, onPointerCancelCapture: onPointerUpCapture, onClickCapture },
     setPercent:(percent:number)=>{if(Number.isFinite(percent))setView(current=>zoomAt(current,Math.max(25,Math.min(300,percent))/(zoomOf(current)*100)))},zoomIn: () => setView(current => zoomAt(current, 1.5)), zoomOut: () => setView(current => zoomAt(current, 1 / 1.5)), reset: () => setView(FULL_VIEW),
   }

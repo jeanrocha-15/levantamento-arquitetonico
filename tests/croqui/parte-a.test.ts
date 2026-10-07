@@ -18,11 +18,22 @@ describe('Zoom do croqui', () => {
   it('aproxima mantendo o centro e limita a área', () => {
     const v = zoomAt(FULL_VIEW, 2)
     expect(zoomOf(v)).toBeCloseTo(2); expect(v.x + v.w / 2).toBeCloseTo(220); expect(v.y + v.h / 2).toBeCloseTo(170)
-    expect(zoomOf(zoomAt(FULL_VIEW, 100))).toBeCloseTo(6)
-    expect(clampView({ x: -50, y: 900, w: 2000, h: 1 })).toEqual(FULL_VIEW)
-    const p = panBy(v, 1000, 0); expect(p.x).toBe(0)
+    expect(zoomOf(zoomAt(FULL_VIEW, 100))).toBeCloseTo(3)
+    expect(clampView({ x: -50, y: 900, w: 2000, h: 1 })).toEqual({ x: -50, y: 900, w: 1760, h: 1360 })
+    const p = panBy(v, 1000, 0); expect(p.x).toBe(v.x - 1000)
   })
 })
+describe('Limites do zoom', () => {
+  it('não desloca o desenho ao continuar aumentando ou diminuindo no limite', () => {
+    for (const factor of [100, .001]) {
+      const limit = zoomAt(FULL_VIEW, factor, .2, .8)
+      expect(zoomAt(limit, factor, .2, .8)).toEqual(limit)
+      expect(limit.x + limit.w * .2).toBeCloseTo(FULL_VIEW.w * .2)
+      expect(limit.y + limit.h * .8).toBeCloseTo(FULL_VIEW.h * .8)
+    }
+  })
+})
+
 describe('Cotas', () => {
   it('linha paralela deslocada para dentro, com texto legível', () => {
     const n = insideNormal({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 60 })

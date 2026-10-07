@@ -29,9 +29,61 @@ describe('Movimentação da visualização do croqui', () => {
   })
   it('não trata toque como mouse nem inicia arraste sem zoom', () => {
     state.value={...FULL_VIEW}
-    const {controller,event}=setup(), original={...state.value}
+    const {controller,event}=setup(false), original={...state.value}
     controller.handlers.onPointerDownCapture(event(100,100) as never)
     controller.handlers.onPointerMoveCapture(event(140,120) as never)
     expect(state.value).toEqual(original)
+  })
+})
+
+
+describe('Roda do mouse isolada no croqui', () => {
+  beforeEach(() => { state.value = { ...FULL_VIEW } })
+  const svg = () => Object.assign(new EventTarget(), {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 440, height: 340 }),
+  })
+  const wheel = () => Object.assign(new Event('wheel', { cancelable: true, bubbles: true }), {
+    deltaY: -100, clientX: 110, clientY: 85,
+  })
+  it('cancela a rolagem nativa e a propagação, mantendo o ponto sob o cursor', () => {
+    const node = svg(), reference = { current: null }
+    const controller = useSketchZoom(reference as never, { panEnabled: true })
+    const attach = vi.spyOn(node, 'addEventListener')
+    const cleanup = controller.bindSvg(node as never)
+    const event = wheel(), propagation = vi.spyOn(event, 'stopPropagation')
+    node.dispatchEvent(event)
+    expect(attach).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: false, capture: true })
+    expect(event.defaultPrevented).toBe(true)
+    expect(propagation).toHaveBeenCalledOnce()
+    expect(state.value.w).toBeLessThan(FULL_VIEW.w)
+    expect(state.value.x + state.value.w * .25).toBeCloseTo(110)
+    expect(state.value.y + state.value.h * .25).toBeCloseTo(85)
+    cleanup?.()
+    const after = { ...state.value }, detached = wheel()
+    node.dispatchEvent(detached)
+    expect(state.value).toEqual(after)
+    expect(detached.defaultPrevented).toBe(false)
+  })
+  it('reinstala o controle quando o SVG muda após carregar outro projeto', () => {
+    const controller = useSketchZoom({ current: null } as never, { panEnabled: true })
+    const first = svg(), second = svg()
+    const cleanup = controller.bindSvg(first as never)
+    cleanup?.()
+    const cleanupSecond = controller.bindSvg(second as never)
+    first.dispatchEvent(wheel())
+    expect(state.value).toEqual(FULL_VIEW)
+    const event = wheel()
+    second.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(state.value.w).toBeLessThan(FULL_VIEW.w)
+    cleanupSecond?.()
+  })
+  it('não intercepta a roda na visualização de relatório', () => {
+    const node = svg(), controller = useSketchZoom({ current: null } as never, { panEnabled: false, enabled: false })
+    controller.bindSvg(node as never)
+    const event = wheel()
+    node.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(state.value).toEqual(FULL_VIEW)
   })
 })

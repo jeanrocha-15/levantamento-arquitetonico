@@ -577,3 +577,6 @@
 --c-fff8df:#FFFFFF;--rgb-fff8df:255 255 255;
 --c-ffffff:#FFFFFF;--rgb-ffffff:255 255 255;}}
 img{filter:none!important}
+
+:root{--sheet-preview-background:#ccd4de}
+[data-theme=dark]{--sheet-preview-background:#101722}
