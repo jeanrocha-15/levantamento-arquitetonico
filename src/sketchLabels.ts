@@ -2,7 +2,7 @@ import { formatMeasurement } from './units'
 import type { MeasurementUnit } from './units'
 import type { buildPerimeter } from './geometry'
 import type { LabelBox } from './openings'
-export function getSketchLabelLayout(geometry: ReturnType<typeof buildPerimeter>, unit: MeasurementUnit = 'm') {
+export function getSketchLabelLayout(geometry: ReturnType<typeof buildPerimeter>, unit: MeasurementUnit = 'm', includeWallLabels = true) {
   const positions = new Map<string, { x: number; y: number; box: LabelBox }>()
   const boxes: LabelBox[] = []
   const place = (key: string, x: number, y: number, width: number, height: number) => {
@@ -20,7 +20,7 @@ export function getSketchLabelLayout(geometry: ReturnType<typeof buildPerimeter>
     place(`corner:${corner.id}`,point.x-direction.x*15,point.y-direction.y*15,30,18)
     place(`angle:${corner.id}`,point.x+direction.x*30,point.y+direction.y*30,58,26)
   })
-  geometry.segments.forEach(segment => {
+  if(includeWallLabels)geometry.segments.forEach(segment => {
     const point = geometry.project({x:(segment.start.x+segment.end.x)/2,y:(segment.start.y+segment.end.y)/2})
     place(`wall:${segment.wall.id}`,point.x+segment.direction.y*27,point.y-segment.direction.x*27,Math.max(80, formatMeasurement(segment.wall.lengthM, unit).length*7+8),34)
   })
