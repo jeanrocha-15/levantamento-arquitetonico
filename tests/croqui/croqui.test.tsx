@@ -25,7 +25,7 @@ describe('Croqui — rótulos realocáveis', () => {
     const html = svg(smaller,()=>{})
     expect(normal).not.toContain('scale(0.5)')
     expect(html).toContain('scale(0.5)')
-    expect(html).toContain('translate(12 6)')
+    expect(html).toContain('translate(12 0)') // A cota da parede A admite somente deslocamento paralelo.
     expect(room).toEqual(original)
     const project: Project = {id:'p',name:'Casa',floors:[{id:room.floorId,name:'Térreo',rooms:[smaller]}],relationships:[]}
     const restored=decodeSnapshot(encodeSnapshot(createSnapshot({projects:[project],projectId:'p',floorId:room.floorId,roomId:room.id})))

@@ -1,3 +1,6 @@
+import { repairSheetDimensions } from './dimensionRepair'
+import { drawingArea } from './sheetLayout'
+import { parallelOffset } from '../architecturalDimensions'
 import type { Project } from '../models'
 import { projectRooms } from '../relationships'
 import { buildPlanRoom, worldPoint } from '../floorPlan'
@@ -19,6 +22,7 @@ export type SheetSource=ReturnType<typeof scopedSheets>[number]
 export function sheetSourceKey(source:SheetSource) {return source.kind+':'+(source.kind==='room'?source.room.id:source.kind==='plan'?source.floor.id:source.roof.id)}
 export function sheetSourceName(source:SheetSource) {return source.kind==='room'?`${source.room.displayId} — ${source.room.name}`:source.kind==='plan'?`Planta Geral — ${source.floor.name}`:`${source.roof.displayId} — ${source.roof.name}`}
 function replay(page:PdfPage,item:PdfSceneItem,offset:Pt,rotation?:number,key?:string) {
+ page.group=item.group
  const p=(pt:Pt)=>({x:pt.x+offset.x,y:pt.y+offset.y});page.section=item.section
  switch(item.kind){
  case 'line':page.line(p(item.a),p(item.b),item.style);break
@@ -56,7 +60,7 @@ export function composeSheet(project:Project,source:SheetSource,layout:SheetLayo
  const shape=buildPlanRoom(source.room),internal=fitInternalWallsSketch(shape.survey.perimeter,shape.survey.internalWalls.placements),extra=[...[...shape.faces.values(),...shape.internalFaces.values()].flat().flatMap(f=>[f.start,f.end]),...shape.survey.internalWalls.placements.flatMap(p=>[p.start,p.end]),...roomGhosts(project,source.room).flatMap(g=>g.segments.flatMap(s=>[s.start,s.end]))]
  sketchScales.set(source.room.id,fitObjectsSketch(internal,shape.objects,extra).scale)
  }
- const page=new PdfPage(raw.widthMm,raw.heightMm),titleOrigin={x:10,y:raw.heightMm-74}
+ let page=new PdfPage(raw.widthMm,raw.heightMm);const titleOrigin={x:10,y:raw.heightMm-74}
  let textIndex=0
  for(const item of raw.scene){
  let offset={x:0,y:0},angle=item.kind==='text'?item.options.rotate??0:undefined,key=item.kind==='text'?item.options.key:undefined
@@ -66,18 +70,23 @@ export function composeSheet(project:Project,source:SheetSource,layout:SheetLayo
  key??=`${sheetSourceKey(source)}|annotation:${textIndex++}`
  const [roomId,labelKey]=key.split('|'),room=rooms.find(r=>r.id===roomId),baseKey=labelKey?.replace(/:line:.*$/,'')
  const inherited=baseKey&&(source.kind==='plan'?room?.planLabelOffsets:room?.labelOffsets)?.[baseKey]
- if(inherited){const factor=source.kind==='plan'?k:k/(sketchScales.get(roomId)??1);offset.x+=inherited.dx*factor;offset.y+=inherited.dy*factor;angle=inherited.rotation??angle}
+ if(inherited){const factor=source.kind==='plan'?k:k/(sketchScales.get(roomId)??1);const shift=!!baseKey&&/^(wall|internal):/.test(baseKey)?parallelOffset(inherited,angle??0):inherited;offset.x+=shift.dx*factor;offset.y+=shift.dy*factor;if(!(baseKey&&/^(wall|internal):/.test(baseKey)))angle=inherited.rotation??angle}
  const override=layout.labelOverrides[key]
- if(override){offset.x+=override.dx;offset.y+=override.dy;angle=override.rotation??angle}
+ if(override){const shift=!!baseKey&&/^(wall|internal):/.test(baseKey)?parallelOffset(override,angle??0):override;offset.x+=shift.dx;offset.y+=shift.dy;if(!(baseKey&&/^(wall|internal):/.test(baseKey)))angle=override.rotation??angle}
  angle=readableRotation(angle??0)
  }
  }else if(item.section==='title')offset={x:layout.titleBlockPosition.x-titleOrigin.x,y:layout.titleBlockPosition.y-titleOrigin.y}
  replay(page,item,offset,angle,key)
  }
+ const area=drawingArea(option),repaired=repairSheetDimensions(page.scene,{x:area.x,y:area.y,width:area.width,height:area.height})
+ if(repaired.repositioned){const next=new PdfPage(page.widthMm,page.heightMm);for(const item of repaired.scene)replay(next,item,{x:0,y:0});page=next}
+ let autoRepositioned=false
+ const completeBounds=sceneBounds(page.scene.filter(i=>i.section==='drawing'))
+ if(completeBounds&&layout.drawingOffsetX===0&&layout.drawingOffsetY===0&&completeBounds.maxX-completeBounds.minX<=area.width&&completeBounds.maxY-completeBounds.minY<=area.height){const dx=Math.max(area.x-completeBounds.minX,Math.min(0,area.x+area.width-completeBounds.maxX)),dy=Math.max(area.y-completeBounds.minY,Math.min(0,area.y+area.height-completeBounds.maxY));if(dx||dy){const next=new PdfPage(page.widthMm,page.heightMm);for(const item of page.scene)replay(next,item,item.section==='drawing'?{x:dx,y:dy}:{x:0,y:0});page=next;autoRepositioned=true}}
  if(numbering&&numbering.total>1){page.section='paper';page.text({x:page.widthMm-14,y:page.heightMm-5},`${numbering.index+1}/${numbering.total}`,2.5,{align:'right'})}
  const drawingBounds=sceneBounds(page.scene.filter(i=>i.section==='drawing')),furnitureBounds=sceneBounds(page.scene.filter(i=>i.section==='title'||i.section==='legend'))
  const outside=(b:ReturnType<typeof sceneBounds>)=>!!b&&(b.minX<9.8||b.minY<9.8||b.maxX>page.widthMm-9.8||b.maxY>page.heightMm-9.8)
  const clipped=outside(drawingBounds)||outside(furnitureBounds)
  const overlaps=!!drawingBounds&&!!furnitureBounds&&drawingBounds.minX<furnitureBounds.maxX&&drawingBounds.maxX>furnitureBounds.minX&&drawingBounds.minY<furnitureBounds.maxY&&drawingBounds.maxY>furnitureBounds.minY
- return {page,drawingBounds,clipped,overlaps,compatibilities:active.length}
+ return {page,drawingBounds,clipped,overlaps,compatibilities:active.length,dimensionConflicts:repaired.unresolved,autoRepositioned}
 }

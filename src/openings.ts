@@ -1,3 +1,4 @@
+import { doorVisualNames,visualDoor } from './openingSymbols'
 import type { InternalWallPlacement } from './internalWalls'
 import { formatMeasurement } from './units'
 import type { MeasurementUnit } from './units'
@@ -126,6 +127,7 @@ export function placeOpeningLabels(placements: OpeningPlacement[], project: (poi
 export const doorKindNames = { hinged: 'De abrir', sliding: 'De correr' } as const
 export function doorDescription(opening: Opening): string {
   if (opening.type !== 'door') return ''
+  if(opening.doorVisualType)return [doorVisualNames[visualDoor(opening)],opening.swing?`lado de ${opening.swing==='outward'?'fora':'dentro'}`:''].filter(Boolean).join(', ')
   const side = (value?: string) => value === 'left' ? 'à esquerda' : value === 'right' ? 'à direita' : ''
   if (opening.doorKind === 'sliding') return ['Porta de correr', opening.slideDirection ? `corre para a ${opening.slideDirection === 'left' ? 'esquerda' : 'direita'}` : 'lado de deslize não informado', opening.swing ? `folha pelo lado de ${opening.swing === 'outward' ? 'fora' : 'dentro'}` : ''].filter(Boolean).join(', ')
   const parts = ['Porta de abrir', opening.swing ? `abre para ${opening.swing === 'outward' ? 'fora' : 'dentro'} do ambiente` : 'sentido não informado', opening.hinge ? `dobradiça ${side(opening.hinge)}` : 'dobradiça não informada']

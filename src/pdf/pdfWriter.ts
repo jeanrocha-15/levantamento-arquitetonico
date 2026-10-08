@@ -22,7 +22,7 @@ export function textWidthMm(text: string, sizeMm: number, font: Font = 'regular'
   return units / 1000 * sizeMm * (font === 'bold' ? 1.06 : 1)
 }
 const n = (value: number) => (Math.round(value * 1000) / 1000).toString()
-export interface StrokeStyle { width: number; gray?: number; dash?: number[] }
+export interface StrokeStyle { dimensionAnchor?:boolean; width: number; gray?: number; dash?: number[] }
 
 export type PdfSection = 'drawing' | 'title' | 'legend' | 'paper'
 export type PdfTextOptions = {align?:'left'|'center'|'right';font?:Font;rotate?:number;gray?:number;key?:string}
@@ -33,13 +33,14 @@ export type PdfCommand =
  | {kind:'curve';a:Pt;c1:Pt;c2:Pt;b:Pt;style:StrokeStyle}
  | {kind:'circle';center:Pt;r:number;style:StrokeStyle}
  | {kind:'text';at:Pt;text:string;sizeMm:number;options:PdfTextOptions}
-export type PdfSceneItem = PdfCommand & {section:PdfSection}
+export type PdfSceneItem = PdfCommand & {section:PdfSection;group?:string}
 
 export class PdfPage {
   readonly ops: string[] = []
   readonly scene: PdfSceneItem[] = []
   section: PdfSection = 'drawing'
-  private record(command:PdfCommand) { this.scene.push({...command,section:this.section}) }
+  group?:string
+  private record(command:PdfCommand) { this.scene.push({...command,section:this.section,...this.group?{group:this.group}:{}}) }
   constructor(readonly widthMm: number, readonly heightMm: number) {}
   private p(point: Pt) { return `${n(point.x * PT_PER_MM)} ${n((this.heightMm - point.y) * PT_PER_MM)}` }
   private style({ width, gray = 0, dash }: StrokeStyle) { this.ops.push(`${n(width * PT_PER_MM)} w ${n(gray)} G [${(dash ?? []).map(d => n(d * PT_PER_MM)).join(' ')}] 0 d`) }

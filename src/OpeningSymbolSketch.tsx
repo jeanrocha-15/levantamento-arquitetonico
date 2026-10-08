@@ -1,0 +1,3 @@
+import type { SymbolPart } from './openingSymbols'
+import type { Point } from './geometry'
+export default function OpeningSymbolSketch({parts,project=(p:Point)=>p}:{parts:SymbolPart[];project?:(p:Point)=>Point}){return <g className="architectural-opening-symbol" fill="none" stroke="currentColor" strokeWidth="1" pointerEvents="none">{parts.map((part,i)=>{const a=project(part.a),b=project(part.b);if(part.kind==='line')return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke"/>;const c1=project(part.c1),c2=project(part.c2);return <path className="door-arc" key={i} d={`M ${a.x} ${a.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${b.x} ${b.y}`} vectorEffect="non-scaling-stroke"/>})}</g>}

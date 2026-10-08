@@ -1,3 +1,4 @@
+import { visualDoor } from './openingSymbols'
 import { structuralVerification } from './structural'
 import { roofChecklist } from './roofs'
 import { COMPLETION_ITEMS, TECHNICAL_ITEMS, technicalCheck, technicalItemId, itemKeyForEntity, validGeneralValue } from './technicalChecklist'
@@ -32,7 +33,11 @@ export function measurementTargets(room: Room): CheckTarget[] {
   return targets
 }
 // Porta de abrir: para onde abre e lado da dobradiça; de correr: para onde corre. Sem isso o croqui mostra o símbolo tracejado.
-export function doorOperationKnown(opening: Pick<import('./models').Opening, 'doorKind' | 'swing' | 'hinge' | 'slideDirection'>) {
+export function doorOperationKnown(opening: Pick<import('./models').Opening, 'doorKind' | 'swing' | 'hinge' | 'slideDirection' | 'doorVisualType'>) {
+  const type=visualDoor({...opening,type:'door'} as import('./models').Opening)
+  if(['gap','folding','other'].includes(type))return true
+  if(['double','pivot'].includes(type))return !!opening.swing
+  if(type==='slide_both')return true
   return (opening.doorKind ?? 'hinged') === 'hinged' ? !!opening.swing && !!opening.hinge : !!opening.slideDirection
 }
 const positive = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0

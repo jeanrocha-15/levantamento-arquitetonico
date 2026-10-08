@@ -2,33 +2,24 @@ import { useMeasurements } from './Measurement'
 import type { Opening, Room } from './models'
 import { getWallReferences } from './openings'
 import { dimensionLine } from './dimensions'
-
-const ok = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0
-// Vista da parede de dentro do ambiente, só para conferência: cota do peitoril, da altura,
-// da largura e da distância ao canto. Usa as medidas originais; nada é gravado.
-export default function OpeningElevation({ room, opening }: { room: Room; opening: Opening }) {
-  const { format } = useMeasurements()
-  const wall = [...room.walls,...room.internalWalls].find(item => item.id === opening.wallId)
-  const reference = getWallReferences(room.walls, room.corners, opening.wallId,room.internalWalls).find(item => item.id === opening.referenceCornerId)
-  const sill = opening.type === 'window' ? opening.sillHeightM : 0
-  if (!wall || !reference || !ok(wall.lengthM) || !(wall.lengthM > 0) || !ok(opening.widthM) || !ok(opening.heightM) || !ok(opening.offsetM) || !ok(sill)) return null
-  const length = wall.lengthM, top = sill + opening.heightM
-  const height = ok(room.ceilingHeightM) && room.ceilingHeightM > 0 ? Math.max(room.ceilingHeightM, top) : Math.max(2.6, top + .3)
-  const fromM = reference.endpoint === 'start' ? opening.offsetM : length - opening.offsetM - opening.widthM
-  const W = 300, H = 150, pad = 30, scale = Math.min((W - 2 * pad) / length, (H - 2 * pad + 10) / height)
-  const x = (m: number) => pad + m * scale, y = (m: number) => H - pad + 6 - m * scale
-  const vertical = (from: number, to: number, at: number, side: number, text: string, key: string) => { const line = dimensionLine({ x: at, y: y(from) }, { x: at, y: y(to) }, { x: side, y: 0 }, 8, 3); return line && <g key={key} className="svg-dimension"><line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>{line.ticks.map(([a, b], i) => <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>)}<text x={line.text.x + side * 4} y={line.text.y} textAnchor={side > 0 ? 'start' : 'end'} dominantBaseline="middle">{text}</text></g> }
-  const horizontal = (from: number, to: number, text: string, key: string) => { const line = dimensionLine({ x: x(from), y: y(0) }, { x: x(to), y: y(0) }, { x: 0, y: 1 }, 10, 3); return line && <g key={key} className="svg-dimension"><line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>{line.ticks.map(([a, b], i) => <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>)}<text x={line.text.x} y={line.text.y + 4} textAnchor="middle" dominantBaseline="middle">{text}</text></g> }
-  const nearM = reference.endpoint === 'start' ? 0 : length, edgeM = reference.endpoint === 'start' ? fromM : fromM + opening.widthM
-  return <figure className="opening-elevation" aria-label={`Vista da parede ${wall.label} de dentro do ambiente com as cotas de ${opening.label}`}>
-    <svg viewBox={`0 0 ${W} ${H + 8}`} role="img">
-      <rect className="elev-wall" x={x(0)} y={y(height)} width={length * scale} height={height * scale}/>
-      <rect className={`elev-opening opening-${opening.type}`} x={x(fromM)} y={y(top)} width={opening.widthM * scale} height={opening.heightM * scale}/>
-      <text className="elev-caption" x={x(0)} y={y(height) - 6}>Parede {wall.label} · vista de dentro</text>
-      {opening.type === 'window' && vertical(0, sill, x(fromM + opening.widthM), 1, `peitoril ${format(sill)}`, 'sill')}
-      {vertical(sill, top, x(fromM), -1, `alt. ${format(opening.heightM)}`, 'height')}
-      {opening.offsetM > 0 && horizontal(Math.min(nearM, edgeM), Math.max(nearM, edgeM), `${format(opening.offsetM)} de ${reference.label}`, 'offset')}
-      <text className="elev-width" x={x(fromM + opening.widthM / 2)} y={y(top) - 4} textAnchor="middle">{format(opening.widthM)}</text>
-    </svg>
-  </figure>
+const valid=(v:number|null|undefined):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=0
+export function wallElevationData(room:Room,wallId:string){
+ const wall=[...room.walls,...room.internalWalls].find(w=>w.id===wallId)
+ if(!wall||!valid(wall.lengthM)||!wall.lengthM)return null
+ const length=wall.lengthM,items=room.openings.filter(o=>o.wallId===wallId),incomplete:string[]=[]
+ const openings=items.flatMap(opening=>{const ref=getWallReferences(room.walls,room.corners,wallId,room.internalWalls).find(r=>r.id===opening.referenceCornerId),sill=opening.type==='window'?opening.sillHeightM:0;if(!ref||!valid(opening.widthM)||!opening.widthM||!valid(opening.heightM)||!opening.heightM||!valid(opening.offsetM)||!valid(sill)){incomplete.push(opening.label);return []}const from=ref.endpoint==='start'?opening.offsetM:length-opening.offsetM-opening.widthM;return [{opening,from,to:from+opening.widthM,sill,top:sill+opening.heightM,reference:ref.label}]}).sort((a,b)=>a.from-b.from)
+ const chain:{from:number;to:number;value:number;label:string}[]=[],warnings:string[]=[];let cursor=0
+ for(const item of openings){if(item.from<cursor-1e-8)warnings.push(`${item.opening.label}: sobreposição entre aberturas.`);if(item.from<0||item.to>length)warnings.push(`${item.opening.label}: fora dos limites da parede.`);if(item.from>cursor)chain.push({from:cursor,to:item.from,value:item.from-cursor,label:'Espaço'});chain.push({from:item.from,to:item.to,value:item.to-item.from,label:item.opening.label});cursor=Math.max(cursor,item.to)}
+ if(cursor<length)chain.push({from:cursor,to:length,value:length-cursor,label:'Final'})
+ const difference=chain.reduce((total,c)=>total+c.value,0)-length
+ return {wall,length,openings,incomplete,chain,difference,warnings,height:Math.max(room.ceilingHeightM??2.6,...openings.map(o=>o.top))}
+}
+export default function OpeningElevation({room,opening}:{room:Room;opening?:Opening}){
+ const {format}=useMeasurements(),walls=[...room.walls,...room.internalWalls].filter(w=>room.openings.some(o=>o.wallId===w.id)&&(!opening||w.id===opening.wallId))
+ return <section className="wall-elevations"><h3>Recortes das paredes com aberturas</h3>{!walls.length&&<p>Nenhuma parede com aberturas.</p>}{walls.map(w=>{
+ const data=wallElevationData(room,w.id);if(!data)return <p key={w.id}>Parede {w.label}: informe o comprimento para gerar o recorte.</p>
+ const {length,height,openings,chain}=data,scale=Math.min(480/length,155/Math.max(height,.01)),xmin=Math.min(0,...openings.map(o=>o.from)),xmax=Math.max(length,...openings.map(o=>o.to)),x=(v:number)=>55+(v-xmin)*scale,y=(v:number)=>205-v*scale,width=(xmax-xmin)*scale+110
+ const dimension=(a:number,b:number,text:string,row:number,key:string)=>{const line=dimensionLine({x:x(a),y:y(0)},{x:x(b),y:y(0)},{x:0,y:1},row,3);if(!line)return null;return <g key={key} className="svg-dimension"><line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>{[a,b].map((v,i)=><line key={i} x1={x(v)} y1={y(0)+2} x2={x(v)} y2={y(0)+row+5}/>)}{line.ticks.map(([a,b],i)=><line key={'tick'+i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>)}<text x={line.text.x} y={line.text.y+7} textAnchor="middle">{text}</text></g>}
+ return <figure key={w.id} className="opening-elevation" aria-label={`Vista da parede ${w.label} de dentro do ambiente com todas as aberturas`}><h4>Parede {w.label} · vista de dentro</h4><svg viewBox={`0 0 ${width} 300`} role="img" aria-label={`Elevação da parede ${w.label}`}><rect className="elev-wall" x={x(0)} y={y(height)} width={length*scale} height={height*scale}/>{openings.map(({opening:o,from,sill,top})=><g key={o.id}><rect className={`elev-opening opening-${o.type}`} x={x(from)} y={y(top)} width={o.widthM!*scale} height={o.heightM!*scale}/><text x={x(from+o.widthM!/2)} y={y(top)-10} textAnchor="middle">{o.label}</text><text x={x(from+o.widthM!/2)} y={y(sill+o.heightM!/2)} textAnchor="middle" fontSize="9">{format(o.widthM,false)} × {format(o.heightM)}</text>{o.type==='window'&&<text x={x(from+o.widthM!/2)} y={y(sill)+12} textAnchor="middle" fontSize="9">P={format(sill)}</text>}</g>)}{chain.map((c,i)=>dimension(c.from,c.to,format(c.value),25+(i%2)*18,'chain'+i))}{dimension(0,length,`Total ${format(length)}`,72,'total')}</svg><figcaption>{openings.map(o=><span key={o.opening.id}>{o.opening.label}: {format(o.opening.offsetM)} do canto {o.reference}; início: {format(o.from)}, final: {format(length-o.to)}. </span>)}</figcaption>{data.incomplete.length>0&&<p role="status">Complete largura, altura, posição e peitoril: {data.incomplete.join(', ')}.</p>}{data.warnings.map((warning,i)=><p className="issue-warning" key={i}>{warning}</p>)}{Math.abs(data.difference)>1e-8&&<p role="status">Diferença das cotas parciais: {format(Math.abs(data.difference))}. Confira as medidas; os valores originais foram mantidos.</p>}</figure>
+ })}</section>
 }

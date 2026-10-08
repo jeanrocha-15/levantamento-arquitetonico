@@ -1,3 +1,4 @@
+import { parallelOffset } from './architecturalDimensions'
 import { readableRotation } from './labelRotation'
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
@@ -7,14 +8,14 @@ import type { LabelBox } from './openings'
 // Rótulos realocáveis do croqui. A posição automática continua sendo calculada; o usuário guarda
 // apenas um deslocamento (dx, dy) por rótulo, em unidades do desenho (viewBox 440×340).
 export const SKETCH_BOUNDS = { width: 440, height: 340 }
-export interface Offset { dx: number; dy: number; rotation?:number }
+export interface Offset { dx: number; dy: number; rotation?:number; side?:1|-1 }
 const ZERO: Offset = { dx: 0, dy: 0 }
 export function sanitizeOffsets(value: unknown): LabelOffsets {
   if (!value || typeof value !== 'object') return {}
   const result: LabelOffsets = {}
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    const { dx, dy,rotation } = (item ?? {}) as { dx?: unknown; dy?: unknown; rotation?:unknown }
-    if (typeof dx === 'number' && typeof dy === 'number' && Number.isFinite(dx) && Number.isFinite(dy)) result[key] = { dx, dy,...typeof rotation==='number'&&Number.isFinite(rotation)?{rotation}:{} }
+    const { dx, dy,rotation,side } = (item ?? {}) as { dx?: unknown; dy?: unknown; rotation?:unknown;side?:unknown }
+    if (typeof dx === 'number' && typeof dy === 'number' && Number.isFinite(dx) && Number.isFinite(dy)) result[key] = { dx, dy,...side===1||side===-1?{side}: {},...typeof rotation==='number'&&Number.isFinite(rotation)?{rotation}:{} }
   }
   return result
 }
@@ -27,7 +28,7 @@ export function clampOffset(offset: Offset, box: LabelBox): Offset {
 }
 export function setOffset(offsets: LabelOffsets, key: string, offset: Offset | null): LabelOffsets {
   const next = { ...offsets }
-  if (!offset || (Math.abs(offset.dx) < 0.5 && Math.abs(offset.dy) < 0.5 && offset.rotation===undefined)) delete next[key]
+  if (!offset || (Math.abs(offset.dx) < 0.5 && Math.abs(offset.dy) < 0.5 && offset.rotation===undefined && offset.side===undefined)) delete next[key]
   else next[key] = offset
   return next
 }
@@ -35,8 +36,8 @@ export function setOffset(offsets: LabelOffsets, key: string, offset: Offset | n
 interface DragApi {
   offset: (key: string) => Offset
   enabled: boolean; arrange: boolean; active?: string
-  start: (key: string, box: LabelBox, event: PointerEvent<SVGGElement>) => void
-  keyboard: (key: string, box: LabelBox, event: KeyboardEvent<SVGGElement>) => void
+  start: (key: string, box: LabelBox, event: PointerEvent<SVGGElement>, parallelAngle?:number) => void
+  keyboard: (key: string, box: LabelBox, event: KeyboardEvent<SVGGElement>, parallelAngle?:number) => void
   select: (key: string) => void
   suppressClick: RefObject<boolean>
 }
@@ -50,10 +51,10 @@ export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRe
   const [live, setLive] = useState<{ key: string; offset: Offset }>()
   const [active, setActive] = useState<string>()
   const suppressClick = useRef(false)
-  const session = useRef<{ key: string; box: LabelBox; pointerId: number; x: number; y: number; base: Offset; ratio: number; moved: boolean; current: Offset }>(undefined)
+  const session = useRef<{ key: string; box: LabelBox; pointerId: number; x: number; y: number; base: Offset; ratio: number; moved: boolean; current: Offset;parallelAngle?:number }>(undefined)
   const offset = useCallback((key: string) => live?.key === key ? live.offset : offsets[key] ?? ZERO, [live, offsets])
   const commit = useCallback((key: string, next: Offset | null) => { onChange?.(setOffset(offsets, key, next)) }, [offsets, onChange])
-  const start = useCallback((key: string, box: LabelBox, event: PointerEvent<SVGGElement>) => {
+  const start = useCallback((key: string, box: LabelBox, event: PointerEvent<SVGGElement>,parallelAngle?:number) => {
     if (!enabled || !onChange) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     // No toque, só arrasta com "Ajustar rótulos" ligado, para não atrapalhar a rolagem da página.
@@ -63,7 +64,7 @@ export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRe
     event.stopPropagation(); event.preventDefault()
     try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* captura indisponível */ }
     const base = offsets[key] ?? ZERO
-    session.current = { key, box, pointerId: event.pointerId, x: event.clientX, y: event.clientY, base, ratio, moved: false, current: base }
+    session.current = { key, box, pointerId: event.pointerId, x: event.clientX, y: event.clientY, base, ratio, moved: false, current: base,parallelAngle }
   }, [enabled, onChange, arrange, svgRef, offsets])
   const move = useCallback((event: PointerEvent<SVGSVGElement>) => {
     const s = session.current
@@ -72,6 +73,7 @@ export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRe
     if (!s.moved && Math.hypot(ddx, ddy) < 3) return
     s.moved = true
     s.current = clampOffset({ ...s.base,dx: s.base.dx + ddx * s.ratio, dy: s.base.dy + ddy * s.ratio }, s.box)
+    if(s.parallelAngle!==undefined)s.current={...s.current,...parallelOffset(s.current,s.parallelAngle),rotation:undefined}
     setLive({ key: s.key, offset: s.current })
   }, [])
   const end = useCallback((event: PointerEvent<SVGSVGElement>) => {
@@ -83,15 +85,15 @@ export function useLabelDrag({ offsets: saved, onChange, enabled, arrange, svgRe
     setLive(undefined)
   }, [commit])
   const cancel = useCallback(() => { session.current = undefined; setLive(undefined) }, [])
-  const keyboard = useCallback((key: string, box: LabelBox, event: KeyboardEvent<SVGGElement>) => {
+  const keyboard = useCallback((key: string, box: LabelBox, event: KeyboardEvent<SVGGElement>,parallelAngle?:number) => {
     const step = event.shiftKey ? 10 : 2
     const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
     const current = offsets[key] ?? ZERO
-    if (moves[event.key]) { event.preventDefault(); event.stopPropagation(); setActive(key); commit(key, clampOffset({ ...current,dx: current.dx + moves[event.key][0], dy: current.dy + moves[event.key][1] }, box)) }
+    if (moves[event.key]) { event.preventDefault(); event.stopPropagation(); setActive(key); commit(key, {...current,...(parallelAngle===undefined?clampOffset({ ...current,dx: current.dx + moves[event.key][0], dy: current.dy + moves[event.key][1] }, box):parallelOffset({dx:current.dx + moves[event.key][0],dy:current.dy + moves[event.key][1]},parallelAngle))}) }
     else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); commit(key, null) }
   }, [offsets, commit])
   const api: DragApi = { offset, enabled: enabled && !!onChange, arrange, active, start, keyboard, select: setActive, suppressClick }
-  return { api, offsets, active, setActive, svgHandlers: { onPointerMove: move, onPointerUp: end, onPointerCancel: cancel }, rotate:(key:string,rotation:number|undefined)=>commit(key,{...offset(key),rotation}),reset: (key?: string) => onChange?.(key ? setOffset(offsets, key, null) : {}), dragging: !!live }
+  return { api, offsets, active, setActive, svgHandlers: { onPointerMove: move, onPointerUp: end, onPointerCancel: cancel }, rotate:(key:string,rotation:number|undefined)=>commit(key,{...offset(key),rotation}),reset: (key?: string) => onChange?.(key ? setOffset(offsets, key, null) : {}), flip:(key:string)=>commit(key,{...offset(key),side:offset(key).side===-1?1:-1}), dragging: !!live }
 }
 
 export function DragProvider({ api, children, labelScale = 1 }: { api: DragApi; children: ReactNode; labelScale?: number }) {
@@ -99,10 +101,11 @@ export function DragProvider({ api, children, labelScale = 1 }: { api: DragApi; 
 }
 
 // Envolve um rótulo: aplica o deslocamento e trata arrastar (mouse/toque) e setas do teclado.
-export function Movable({ id, box, title, children,angle=0 }: { id: string; box: LabelBox; title?: string; children: ReactNode;angle?:number }) {
+export function Movable({ id, box, title, children,angle=0,parallel=false }: { id: string; box: LabelBox; title?: string; children: ReactNode;angle?:number;parallel?:boolean }) {
   const api = useContext(DragContext)
   const scale = useSketchLabelScale()
-  const offset = api?.offset(id) ?? ZERO
+  const saved = api?.offset(id) ?? ZERO
+  const offset = parallel?{...saved,...parallelOffset(saved,angle),rotation:undefined}:saved
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2
   const sizing = scale === 1 ? '' : `translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`
   const rotation=readableRotation(offset.rotation??angle),rotationTransform=`rotate(${rotation} ${cx} ${cy})`
@@ -112,9 +115,9 @@ export function Movable({ id, box, title, children,angle=0 }: { id: string; box:
   return <g className={className} data-label-key={id} transform={`${moved ? `translate(${offset.dx} ${offset.dy})` : ''} ${rotationTransform} ${sizing}`.trim() || undefined}
     pointerEvents={api.enabled ? 'auto' : 'none'} tabIndex={api.enabled && api.arrange ? 0 : undefined} role={api.enabled && api.arrange ? 'button' : undefined}
     aria-label={api.enabled && api.arrange ? `Rótulo ${title ?? id}: use as setas para mover, Delete para restaurar` : undefined}
-    onPointerDown={event => api.start(id, box, event)}
+    onPointerDown={event => api.start(id, box, event,parallel?angle:undefined)}
     onClick={event => { if (api.suppressClick.current) { event.stopPropagation(); event.preventDefault() } else if (api.arrange) { event.stopPropagation(); api.select(id) } }}
-    onKeyDown={event => api.keyboard(id, box, event)}>
+    onKeyDown={event => api.keyboard(id, box, event,parallel?angle:undefined)}>
     {api.enabled && <rect className="label-hit" x={box.x - 2} y={box.y - 2} width={box.width + 4} height={box.height + 4} rx="4"/>}
     {children}
   </g>

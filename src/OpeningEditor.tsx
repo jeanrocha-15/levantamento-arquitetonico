@@ -9,6 +9,8 @@ import { doorDescription, getWallReferences, openingLabel, openingNames } from '
 import type { OpeningCheck } from './openings'
 import { OpeningConnection } from './RoomConnections'
 import OpeningElevation from './OpeningElevation'
+import OpeningAppearance from './OpeningAppearance'
+import { visualDoor } from './openingSymbols'
 import type { RoomOption } from './RoomConnections'
 import { useEffect, useState } from 'react'
 
@@ -53,20 +55,21 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
           {field('widthM', `Largura (${unit})`)}{field('heightM', `Altura (${unit})`)}
           {opening.type === 'window' && field('sillHeightM', `Peitoril (${unit})`)}
           <div className="opening-offset">{field('offsetM', `Distância do canto até a borda da abertura (${unit})`)}</div>
-          {opening.type === 'door' && <fieldset className="door-operation">
+          {opening.type !== 'gap' && <OpeningAppearance opening={opening} update={update}/>}
+          {opening.type === 'door' && !['gap','other','folding'].includes(visualDoor(opening)) && <fieldset className="door-operation">
             <legend>Funcionamento da porta <span>(esquerda/direita vistas de dentro do ambiente, olhando para a parede)</span></legend>
-            <label>Tipo de porta<select id={`${opening.id}-doorKind`} value={opening.doorKind ?? 'hinged'} onChange={event => update({ doorKind: event.target.value === 'sliding' ? 'sliding' : 'hinged' })}><option value="hinged">De abrir (com giro)</option><option value="sliding">De correr</option></select></label>
-            {(opening.doorKind ?? 'hinged') === 'hinged' ? <>
+
+            {!visualDoor(opening).startsWith('slide') ? <>
               <label>Abre para<select value={opening.swing ?? ''} onChange={event => update({ swing: event.target.value === 'inward' || event.target.value === 'outward' ? event.target.value : undefined })}><option value="">Não informado</option><option value="inward">Dentro do ambiente</option><option value="outward">Fora do ambiente</option></select></label>
-              <label>Dobradiça<select value={opening.hinge ?? ''} onChange={event => update({ hinge: event.target.value === 'left' || event.target.value === 'right' ? event.target.value : undefined })}><option value="">Não informado</option><option value="left">À esquerda</option><option value="right">À direita</option></select></label>
+              {visualDoor(opening)==='single'&&<label>Dobradiça<select value={opening.hinge ?? ''} onChange={event => update({ hinge: event.target.value === 'left' || event.target.value === 'right' ? event.target.value : undefined })}><option value="">Não informado</option><option value="left">À esquerda</option><option value="right">À direita</option></select></label>}
             </> : <>
-              <label>Corre para<select value={opening.slideDirection ?? ''} onChange={event => update({ slideDirection: event.target.value === 'left' || event.target.value === 'right' ? event.target.value : undefined })}><option value="">Não informado</option><option value="left">Para a esquerda</option><option value="right">Para a direita</option></select></label>
+              {visualDoor(opening)!=='slide_both'&&<label>Corre para<select value={opening.slideDirection ?? ''} onChange={event => update({ slideDirection: event.target.value === 'left' || event.target.value === 'right' ? event.target.value : undefined })}><option value="">Não informado</option><option value="left">Para a esquerda</option><option value="right">Para a direita</option></select></label>}
               <label>Folha pelo lado<select value={opening.swing ?? ''} onChange={event => update({ swing: event.target.value === 'inward' || event.target.value === 'outward' ? event.target.value : undefined })}><option value="">Não informado</option><option value="inward">De dentro do ambiente</option><option value="outward">De fora do ambiente</option></select></label>
             </>}
           </fieldset>}
         </div>
         <p className="opening-summary">{opening.label} · Parede {wall?.label ?? '?'} · {format(opening.widthM, false)} × {format(opening.heightM)}{opening.type === 'window' ? ` · P=${format(opening.sillHeightM)}` : ''}<br/>{format(opening.offsetM)} do canto {reference?.label ?? '?'} até a borda mais próxima.{opening.type === 'door' && <><br/>{doorDescription(opening)}.</>}</p>
-        <OpeningElevation room={room} opening={opening}/>
+
         {opening.type !== 'window' && <OpeningConnection floorId={room.floorId} opening={opening} roomId={room.id} rooms={relatedRooms} onChange={update} onCreate={onProjectChange?(name,parentId)=>{
           const sequence=nextRoomSequence(project)
           const target={...createRoom(name,room.floorId,parentId),displayId:roomDisplayId(sequence)}
@@ -76,5 +79,6 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
         {check && check.messages.length > 0 && <div className="opening-feedback" aria-live="polite">{check.messages.map(message => <p key={message}>{message}</p>)}</div>}
       </section>
     })}
+    <OpeningElevation room={room}/>
   </section>
 }

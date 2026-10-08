@@ -1,4 +1,7 @@
-import { windowFaces } from '../wallFaces'
+import { pdfDimensionLayout } from './dimensionLayout'
+import { drawArchitecturalDimension } from './dimensionDrawing'
+import { openingSymbol } from '../openingSymbols'
+import { drawOpeningSymbol } from './openingSymbol'
 import { openingFrame } from '../openingFrame'
 import { objectLayerVisible } from './sheetDecorations'
 import { roomLabelPosition } from './labelPosition'
@@ -11,7 +14,6 @@ import { buildWallFaces } from '../wallFaces'
 import type { Floor, Project, Room } from '../models'
 import { buildRoomGeometry } from '../roomGeometry'
 import { buildObjectPlacements, objectDimensionsLabel } from '../roomObjects'
-import { doorDrawing } from '../openings'
 import { validAngle } from '../corners'
 import { formatMeasurement } from '../units'
 import { insideNormal } from '../dimensions'
@@ -22,14 +24,14 @@ import type { SheetOption } from './sheetLayout'
 
 const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 // Extensão do desenho em metros (geometria de visualização; as medidas originais não mudam).
-export function roomExtent(room:Room,layers=defaultPdfLayers) {const shape=buildPlanRoom(room);return {...planBounds(architecturalPoints(shape,layers)),survey:shape.survey}}
+export function roomExtent(room:Room,layers=defaultPdfLayers,scale=50,unit:import('../units').MeasurementUnit='m',layout?:import('./sheetSettings').SheetLayout) {const shape=buildPlanRoom(room),dims=pdfDimensionLayout([{shape}],3*scale/1000,unit,layers,layout);return {...planBounds([...architecturalPoints(shape,layers),...dims.points,...dims.annotationPoints]),survey:shape.survey,dimensions:dims.dimensions}}
 
 export const isApproximate = (survey: ReturnType<typeof buildRoomGeometry>) => survey.perimeter.calculations.length > 0 || !survey.perimeter.closed
 
 export interface SheetInput { project: Project; floor?: Floor; room: Room; option: SheetOption; date?: Date; layers?:PdfLayers; responsible?:string; preview?:boolean; layout?:import('./sheetSettings').SheetLayout }
 // Monta a prancha. Retorna também o transformador metro→mm, usado nos testes de escala.
 export function drawRoomSheet({ project, floor, room, option, date = new Date(),layers=defaultPdfLayers,responsible,preview,layout }: SheetInput) {
-  const extent = roomExtent(room,layout?defaultPdfLayers:layers)
+  const extent = roomExtent(room,layers,option.scale,project.measurementUnit??'m',layout)
   const problem = fitMessage(extent, option)
   if (problem && !preview) throw new Error(problem)
   const unit = project.measurementUnit ?? 'm'
@@ -42,22 +44,17 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
   const { perimeter, openings, internalWalls } = extent.survey
   const vertices = perimeter.segments.map(segment => toPaper(segment.start))
   const center = vertices.length ? { x: vertices.reduce((t, p) => t + p.x, 0) / vertices.length, y: vertices.reduce((t, p) => t + p.y, 0) / vertices.length } : origin
-  const thin = { width: .18 }, medium = { width: .35 }
+
   const faces=buildWallFaces(perimeter.segments.map(s=>({id:s.wall.id,start:s.start,end:s.end,thickness:s.wall.thickness,referenceFace:room.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])))
   // Paredes: trechos cheios (sem as aberturas). A espessura vai para fora da linha medida (face interna).
   for (const segment of perimeter.segments) {
     const ranges = faces.get(segment.wall.id) ?? []
-    const a = toPaper(segment.start), b = toPaper(segment.end)
-    const inside = insideNormal(a, b, center)
-    const thickness = segment.wall.thickness != null && Number.isFinite(segment.wall.thickness) && segment.wall.thickness > 0 ? mmOnPaper(segment.wall.thickness, option.scale) : 0
     for (const range of layers.walls?ranges:[]) {
       const from = toPaper(range.start), to = toPaper(range.end)
       page.line(from, to, { width: .5, dash: segment.measured ? undefined : [2, 1.5] })
     }
-    // Comprimento da parede, do lado de fora.
-    const middle = { x: (a.x + b.x) / 2 - inside.x * (thickness + 5), y: (a.y + b.y) / 2 - inside.y * (thickness + 5) }
-    let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; if (angle > 90) angle -= 180; else if (angle < -90) angle += 180
-    if(layers.measurements||layers.ids) page.text({ x: middle.x, y: middle.y + 1.2 }, [layers.ids?segment.wall.label:'',layers.measurements?(segment.measured?f(segment.wall.lengthM):'sem medida'):''].filter(Boolean).join('  '), 3, { align: 'center', rotate: angle, font: 'bold',key:`${room.id}|wall:${segment.wall.id}` })
+    const dimension=extent.dimensions.get(`${room.id}|wall:${segment.wall.id}`);if(dimension)drawArchitecturalDimension(page,dimension,toPaper,3,layers.measurements)
+
   }
   if (layers.walls && perimeter.allMeasured && !perimeter.endpointsMeet && perimeter.segments.length >= 3) page.line(toPaper(perimeter.segments.at(-1)!.end), toPaper(perimeter.segments[0].start), { width: .2, dash: [1, 1], gray: .4 })
   // Ângulos internos.
@@ -78,14 +75,7 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
     const { opening } = placement
     const a = toPaper(placement.start), b = toPaper(placement.end)
     const inside = insideNormal(a, b, center)
-    if(opening.type==='window')windowFaces(openingFrame(perimeter,placement,room.wallMeasurementFace),placement.start,placement.end).forEach(f=>page.line(toPaper(f.start),toPaper(f.end),thin))
-    const door = doorDrawing(opening, a, b, { x: (b.x - a.x) / Math.hypot(b.x - a.x, b.y - a.y), y: (b.y - a.y) / Math.hypot(b.x - a.x, b.y - a.y) })
-    if (door?.kind === 'hinged') {
-      const [hinge, open] = door.leaf, other = Math.hypot(a.x - hinge.x, a.y - hinge.y) < 1e-6 ? b : a
-      page.line(hinge, open, medium)
-      const c = .5523
-      page.curve(other, { x: other.x + (open.x - hinge.x) * c, y: other.y + (open.y - hinge.y) * c }, { x: open.x + (other.x - hinge.x) * c, y: open.y + (other.y - hinge.y) * c }, open, { width: .15, dash: door.specified ? undefined : [1, 1] })
-    } else if (door?.kind === 'sliding') { page.line(door.leaf[0], door.leaf[1], medium); if (door.track) page.line(door.track[0], door.track[1], { width: .15, dash: [1, 1] }) }
+    drawOpeningSymbol(page,openingSymbol(opening,placement.start,placement.end,openingFrame(perimeter,placement,room.wallMeasurementFace),project.representationMode),toPaper)
     const textAt = { x: (a.x + b.x) / 2 + inside.x * 6, y: (a.y + b.y) / 2 + inside.y * 6 }
     const lines = [layers.ids?opening.label:'', ...(layers.measurements?[`${formatMeasurement(opening.widthM, unit, false)} × ${f(opening.heightM)}`, ...(opening.type === 'window' ? [`P=${f(opening.sillHeightM)}`] : []), `${f(opening.offsetM)} de ${placement.reference.label}`]:[])].filter(Boolean)
     lines.forEach((line, index) => page.text({ x: textAt.x, y: textAt.y + index * 3 }, line, index === 0 ? 2.4 : 2.1, { align: 'center', font: index === 0 ? 'bold' : 'regular', gray: index === 0 ? 0 : .3,key:`${room.id}|opening:${opening.id}:line:${index}`,rotate:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI }))
@@ -93,9 +83,9 @@ export function drawRoomSheet({ project, floor, room, option, date = new Date(),
   const piFaces=buildWallFaces(internalWalls.placements.map(p=>({id:p.internalWall.id,start:p.start,end:p.end,thickness:p.internalWall.thicknessM,referenceFace:room.wallMeasurementFace ?? 'internal'})),new Map(openings.wallLayouts.map(w=>[w.wallId,w.solidRanges])))
   // Paredes internas (PI).
   for (const item of internalWalls.placements) {
-    const a = toPaper(item.start), b = toPaper(item.end)
     for(const face of layers.walls?piFaces.get(item.internalWall.id) ?? []:[]) page.line(toPaper(face.start),toPaper(face.end),{width:.35})
-    if(layers.measurements||layers.ids) page.text({ x: (a.x + b.x) / 2 + 2, y: (a.y + b.y) / 2 - 1.5 }, [layers.ids?item.internalWall.label:'',layers.measurements?f(item.internalWall.lengthM):''].filter(Boolean).join(' '), 2.3,{key:`${room.id}|internal:${item.internalWall.id}`,rotate:Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI})
+    const dimension=extent.dimensions.get(`${room.id}|internal:${item.internalWall.id}`);if(dimension)drawArchitecturalDimension(page,dimension,toPaper,3,layers.measurements)
+
   }
   // Objetos.
   for (const item of buildObjectPlacements(room.objects ?? [], [...perimeter.segments,...internalWalls.placements.map(p=>({wall:{id:p.internalWall.id},start:p.start,end:p.end}))])) {
