@@ -1,10 +1,12 @@
-name: Publicar aplicação no GitHub Pages
+name: Publicar aplicação e prévia dev
 
 on:
+  push:
+    branches: [dev]
   workflow_dispatch:
     inputs:
       run_tests:
-        description: Executar testes gerais antes da publicação
+        description: Executar testes antes da publicação
         type: boolean
         default: true
 
@@ -15,24 +17,51 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Obter versão principal
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: stable
+      - name: Obter prévia
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: preview
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: |
+            stable/package-lock.json
+            preview/package-lock.json
       - run: npm ci
+        working-directory: stable
+      - run: npm ci
+        working-directory: preview
       - run: npm test
-        if: ${{ inputs.run_tests }}
+        working-directory: preview
+        if: ${{ github.event_name == 'push' || inputs.run_tests }}
       - run: npm run build
+        working-directory: stable
+      - run: npm run build
+        working-directory: preview
+        env:
+          VITE_APP_CHANNEL: dev
+      - name: Montar os dois sites
+        run: |
+          mkdir -p site/dev
+          cp -a stable/dist/. site/
+          cp -a preview/dist/. site/dev/
+          touch site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

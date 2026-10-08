@@ -245,3 +245,14 @@ Verificação da geometria: `node tests/geometry.mjs`. Casos: retangular, pentá
 Verificação das aberturas: `node tests/openings.mjs`. Casos: referência em ambos os extremos, recorte do traço, paredes inclinadas, portas/janelas/vãos, unidades, dados incompletos, limites, sobreposições, cantos inválidos e preservação dos registros.
 
 Modelos: `src/models.ts`. Organização e nomenclatura: `src/domain.ts`. Identificação e valores dos encontros: `src/corners.ts`. Geometria de visualização: `src/geometry.ts`. Cálculos trigonométricos: `src/diagonals.ts`. Editores: `src/CornerEditor.tsx`, `src/DiagonalEditor.tsx` e `src/OpeningEditor.tsx`. Posicionamento das aberturas: `src/openings.ts`. Renderização das aberturas: `src/OpeningSketch.tsx`. Avisos de fechamento: `src/GeometryStatus.tsx`. Sem backend ou funcionalidades das próximas etapas; armazenamento local implementado na etapa 9.
+
+## Prévia de desenvolvimento
+
+- Principal (`main`): https://jeanrocha-15.github.io/levantamento-arquitetonico/
+- Prévia (`dev`): https://jeanrocha-15.github.io/levantamento-arquitetonico/dev/
+
+Cada push para `dev` testa e publica os dois desenhos do site: o principal é compilado exclusivamente a partir de `main`, e `/dev/` a partir de `dev`. Não é necessário mesclar em `main` para experimentar uma mudança.
+
+A prévia exibe **PRÉVIA · DEV** e possui IndexedDB, fotos, journal de autosave e cache offline separados. Os projetos existentes no site principal não são importados automaticamente. Um backup pode ser importado manualmente para testar uma cópia.
+
+A publicação manual deve ser executada usando o workflow do ramo `dev`, que preserva os dois endereços no mesmo artefato do GitHub Pages.

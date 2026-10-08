@@ -1,10 +1,11 @@
+import { storagePrefix } from './releaseChannel'
 // Com o servidor opcional (login), cada usuário tem um armazenamento local próprio no navegador.
 // A página servida informa o usuário em <meta name="campo-user">; sem ela, o comportamento é o original.
 export function storageScope(): string {
   try { const value = globalThis.document?.querySelector('meta[name="campo-user"]')?.getAttribute('content'); return value && /^[\w-]{1,64}$/.test(value) ? `-u${value}` : '' } catch { return '' }
 }
 export const scope = storageScope()
-export const BASE_DATABASE = 'campo-levantamentos'
+export const BASE_DATABASE = `${storagePrefix}campo-levantamentos`
 export const DATABASE_NAME = `${BASE_DATABASE}${scope}`
 const databases = new Map<string, Promise<IDBDatabase>>()
 export function openDatabase(name = DATABASE_NAME): Promise<IDBDatabase> {
