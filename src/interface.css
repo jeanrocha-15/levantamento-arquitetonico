@@ -1,0 +1,85 @@
+/* Presentation only: data, handlers and geometry remain owned by existing components. */
+:root { --ui-radius: 10px; --ui-space: 16px; }
+body { line-height: 1.5; }
+button, input, select, textarea { font-family: inherit; }
+button { background: var(--surface); color: var(--ink); border-color: var(--border); border-radius: 8px; min-height: 40px; padding: 9px 13px; font-size: 13px; transition: background-color .15s, border-color .15s; }
+button:not(:disabled):hover { border-color: var(--muted); }
+button:disabled { cursor: not-allowed; opacity: .5; }
+button.primary, .photo-capture-actions > button:first-child { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: none; }
+button.primary:not(:disabled):hover { background: color-mix(in srgb, var(--primary) 88%, var(--ink)); }
+button.button-tertiary, .element-photo-actions button, .photo-room-link, .link-button { background: transparent; box-shadow: none; }
+button.button-danger, .remove-wall { color: var(--c-854f3a); border-color: transparent; background: transparent; }
+button.button-danger:not(:disabled):hover, .remove-wall:not(:disabled):hover { background: color-mix(in srgb, var(--c-854f3a) 8%, var(--surface)); border-color: color-mix(in srgb, var(--c-854f3a) 35%, var(--border)); }
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea { min-height: 42px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); margin-top: 6px; box-shadow: none; }
+textarea { line-height: 1.5; resize: vertical; }
+input[type=checkbox], input[type=radio] { accent-color: var(--primary); flex-shrink: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+label { font-size: 12px; font-weight: 600; line-height: 1.45; color: var(--ink); }
+.editor { border-radius: 12px; box-shadow: none; }
+.section-top { margin-bottom: 20px; }
+.eyebrow { letter-spacing: 1.3px; color: var(--muted); }
+.angle-help, .memory-note, .calculated-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.environment-content h3 { font-size: 15px; margin-bottom: 8px; }
+.environment-content h4 { font-size: 14px; }
+.environment-tabs { gap: 5px; }
+.environment-tabs button { font-size: 12px; }
+.opening-card, .internal-wall-card, .room-object-card, .diagonal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--ui-radius); padding: 16px; margin-top: 16px; box-shadow: none; }
+.opening-heading, .internal-wall-heading { margin-bottom: 12px; align-items: center; gap: 12px; }
+.opening-heading h4, .internal-wall-heading h4 { margin: 0; }
+.opening-heading h4 span, .internal-wall-heading h4 span { font-weight: 400; color: var(--muted); }
+.opening-fields, .internal-wall-fields, .object-fields { gap: 14px; }
+.opening-summary, .internal-wall-summary { padding: 10px 12px; font-size: 12px; border-radius: 8px; background: color-mix(in srgb, var(--page) 65%, var(--surface)); color: var(--muted); line-height: 1.7; margin: 12px 0; }
+.ui-disclosure { grid-column: 1 / -1; width: 100%; min-width: 0; margin: 12px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.ui-disclosure > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; padding: 11px 12px; margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); min-height: 44px; }
+.ui-disclosure > summary::-webkit-details-marker { display: none; }
+.ui-disclosure > summary::after { content: '+'; font-size: 17px; font-weight: 400; margin-left: auto; }
+.ui-disclosure[open] > summary { color: var(--ink); border-bottom: 1px solid var(--border); }
+.ui-disclosure[open] > summary::after { content: '−'; }
+.ui-disclosure > :not(summary) { margin: 12px; }
+.ui-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ui-options-grid > p, .ui-options-grid > .object-note, .ui-options-grid > .internal-wall-note { grid-column: 1 / -1; }
+.wall-row { border: 1px solid var(--border); border-radius: 10px; padding: 14px; gap: 12px; margin-bottom: 10px; }
+.wall-row .wall-options { grid-column: 1 / -1; margin-top: 0; }
+.wall-properties { gap: 14px; }
+.wall-badge { border-radius: 8px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); color: var(--ink); }
+.wall-actions { position: relative; margin: 16px 0; }
+.wall-actions > .primary { width: 100%; }
+.guidance { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.element-photo-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.element-photo-actions button { min-height: 36px; padding: 6px 9px; font-size: 11px; color: var(--muted); border-color: var(--border); }
+.door-operation { border: 1px solid var(--border); border-radius: 8px; padding: 12px; gap: 12px; }
+.door-operation legend { font-size: 12px; }
+.door-operation legend span { color: var(--muted); font-size: 11px; font-weight: 400; }
+.category-filters { padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--page); gap: 12px; }
+.opening-feedback, .internal-wall-feedback { font-size: 12px; line-height: 1.6; }
+.opening-feedback p:last-child, .internal-wall-feedback p:last-child { margin-bottom: 0; }
+.structural-actions, .opening-actions, .photo-capture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.technical-checklist > details, .checklist-panel > details, .environment-issues > details { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 12px 0; background: var(--surface); }
+.technical-checklist summary, .checklist-panel summary, .environment-issues summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.technical-check-row { border-bottom: 1px solid var(--border); padding: 14px 0; }
+.completion-stats { gap: 10px; padding: 12px; border-radius: 10px; background: var(--page); font-size: 12px; }
+.issue-list li { border-radius: 8px; margin: 8px 0; }
+.photo-card { padding: 14px; border: 1px solid var(--border); border-radius: 10px; box-shadow: none; }
+.photo-card h4 { font-size: 13px; margin: 10px 0 4px; overflow-wrap: anywhere; }
+.photo-date { font-size: 11px; color: var(--muted); }
+.photo-card .ui-options-grid { grid-template-columns: 1fr; }
+.plan-controls .editor { padding: 16px; border-radius: 10px; }
+.plan-main-toolbar { box-shadow: 0 3px 12px #00000006; gap: 8px; }
+.plan-context-actions { gap: 6px; }
+.plan-context-actions button { font-size: 12px; }
+.plan-controls summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.plan-progress { gap: 10px; font-size: 12px; }
+.plan-room-row button { font-size: 12px; }
+.module-flow { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 24px; }
+@media (max-width: 760px) {
+ button { min-height: 44px; }
+ .opening-card, .internal-wall-card, .room-object-card, .diagonal-card { padding: 14px; }
+ .ui-options-grid { grid-template-columns: 1fr; }
+ .ui-disclosure > summary { min-height: 46px; }
+ .opening-fields, .internal-wall-fields, .object-fields { gap: 12px; }
+ .structural-actions > button, .opening-actions > button, .photo-capture-actions > button { flex: 1; }
+ .element-photo-actions button { min-height: 40px; }
+ .environment-tabs { gap: 4px; }
+ .plan-controls .editor { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
