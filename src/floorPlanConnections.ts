@@ -1,4 +1,5 @@
 import { cornerAnchor, cornerSnap, cornerWallRelationships } from './cornerConnections'
+import {wallConflicts} from './wallConflicts'
 import { availableCounterpart } from './spatialConnections'
 import type { Project,Room,RoomRelationship,RoomPlacement } from './models'
 import type { Point } from './geometry'
@@ -88,7 +89,8 @@ export function planCompatibility(project:Project,floorId:string,placements=floo
  relations.forEach(r=>{const state=relationshipState(project,r,placements);if(state.completed)completed++;else alerts.push({roomId:r.targetRoomId,otherRoomId:r.sourceRoomId,message:state.message});if(state.alignment&&state.alignment.differenceM>planTolerance.lengthM)alerts.push({roomId:r.targetRoomId,otherRoomId:r.sourceRoomId,message:`Divergência: ${(state.alignment.differenceM*100).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm.`});if(state.alignment&&state.alignment.thicknessM>planTolerance.lengthM)alerts.push({roomId:r.targetRoomId,message:`Espessuras divergentes: ${(state.alignment.thicknessM*100).toLocaleString('pt-BR',{maximumFractionDigits:2})} cm.`})})
  const shapes=rooms.filter(r=>placed.has(r.id)).map(buildPlanRoom)
  for(let i=0;i<shapes.length;i++)for(let j=i+1;j<shapes.length;j++){const a=shapes[i],b=shapes[j];if(!a.survey.perimeter.closed||!b.survey.perimeter.closed)continue;const pa=a.interiorPolygon.map(p=>worldPoint(p,placements.find(x=>x.roomId===a.room.id)!)),pb=b.interiorPolygon.map(p=>worldPoint(p,placements.find(x=>x.roomId===b.room.id)!));if(polygonsOverlap(pa,pb)&&!intentionalContainment(project,a.room,b.room,pa,pb))alerts.push({roomId:a.room.id,otherRoomId:b.room.id,message:'Sobreposição inesperada entre ambientes.'})}
- const total=rooms.length+relations.length,overlaps=alerts.filter(a=>a.message.startsWith('Sobreposição')).length
+ alerts.push(...wallConflicts(project,floorId,placements))
+ const total=rooms.length+relations.length,overlaps=alerts.filter(a=>a.message.startsWith('Sobreposição')||a.message.startsWith('Conflito de paredes')).length
  return {alerts,total,completed,percentage:total?Math.round(100*Math.max(0,completed-Math.min(overlaps,completed))/total):0}
 }
 export function assistPlacements(project:Project,floorId:string) {

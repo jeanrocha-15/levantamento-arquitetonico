@@ -1,3 +1,4 @@
+import {wallConflicts} from './wallConflicts'
 import {roomWallHeight} from './ceilingHeight'
 import type { Project } from './models'
 import { floorRooms, buildPlanRoom, worldPoint } from './floorPlan'
@@ -8,6 +9,8 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
  if(!Number.isFinite(elevationM)) throw new Error('Informe uma elevação válida.')
  const floor=project.floors.find(f=>f.id===floorId)
  if(!floor) throw new Error('Selecione um pavimento.')
+ const conflicts=wallConflicts(project,floorId,project.roomPlacements??[])
+ if(conflicts.length)throw new Error(conflicts.map(c=>c.message).join(' '))
  const warnings:string[]=[]
  const openings:{id:string;label:string;type:string;hostWallId:string;roomId:string;start:number[];end:number[]}[]=[]
  const walls: {id:string;roomId:string;label:string;start:number[];end:number[];heightM:number;thicknessM:number;typeName:string;measuredLengthM:number|null}[]=[]
