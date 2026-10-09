@@ -11,7 +11,7 @@ import PdfExportPanel from './PdfExportPanel'
 import { createBackup, downloadText, importProjects, parseBackup, projectCsv } from './exporting'
 
 // Exportações (relatório, planilha, backup) e importação de backup.
-export default function ExportPanel({ workspace, project, floor, room, onImport, onReport, onChangeProject }: { workspace: WorkspaceData; project: Project; floor?: Floor; room?: Room; onImport: (data: WorkspaceData) => void; onReport: () => void; onChangeProject?:(project:Project)=>void }) {
+export default function ExportPanel({ workspace, project, floor, room, onImport, onReport, onChangeProject, standalone=false }: { standalone?: boolean; workspace: WorkspaceData; project: Project; floor?: Floor; room?: Room; onImport: (data: WorkspaceData) => void; onReport: () => void; onChangeProject?:(project:Project)=>void }) {
   const [scope,setScope]=useState<ExportScope>(room?'room':'project')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string }>()
   const input = useRef<HTMLInputElement>(null)
@@ -27,7 +27,7 @@ export default function ExportPanel({ workspace, project, floor, room, onImport,
     } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Não foi possível importar o arquivo.' }) }
     finally { if (input.current) input.current.value = '' }
   }
-  return <details className="export-panel"><summary>⇩ Exportar e importar</summary>
+  return <details open={standalone || undefined} className={`export-panel ${standalone ? "exports-page" : ""}`}><summary>⇩ Exportar e importar</summary>
     <label>Escopo do JSON / backup<select value={scope} onChange={e=>setScope(e.target.value as ExportScope)}>{Object.entries(exportScopeNames).map(([value,label])=><option key={value} value={value} disabled={value==='room' && !room || ['floor','plan'].includes(value) && !floor}>{label}</option>)}</select></label><div className="export-actions">
       <button onClick={onReport}>Relatório (imprimir / PDF)</button>
       <button onClick={() => run(() => { const file = projectCsv(project); downloadText(file.fileName, file.text, 'text/csv;charset=utf-8'); setMessage({ type: 'ok', text: `Planilha ${file.fileName} gerada.` }) })}>Planilha do projeto (CSV)</button>

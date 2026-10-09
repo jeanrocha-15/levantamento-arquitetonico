@@ -6,14 +6,14 @@ Integração inicial via arquivo JSON + Python no pyRevit. O site continua React
 2. Copie a pasta `LAC.extension` para a pasta de extensões do pyRevit (normalmente `%APPDATA%\pyRevit\Extensions`). Recarregue o pyRevit.
 3. No LAC, posicione os ambientes na Planta Geral. Preencha espessuras e pé-direito.
 4. Em Exportar e importar → Integração Revit, selecione pavimento e informe sua elevação em metros. Exporte LAC-Revit.json.
-5. Abra um projeto Revit de teste e clique LAC → Levantamento → Importar LAC. Selecione o JSON e os tipos de parede existentes com espessura correspondente.
+5. Abra um projeto Revit de teste e clique LAC → Levantamento → Importar LAC. Selecione o JSON e um tipo básico de referência para duplicar.
 6. Confirme a importação e confira a vista 3D. Use Desfazer no Revit para reverter.
 
 ## Contrato
 
 `format: lac-revit`, `schemaVersion: 1`, `units: m`. Eixos de parede derivados das faces físicas do croqui; aplica RoomPlacement sem escala individual e converte Y da tela para Y cartesiano. No script, metros são convertidos para pés internos do Revit. O JSON também guarda os dados originais, IDs e RoomPlacements sem fotos binárias.
 
-Não inventa elevações, tipos ou alturas. Paredes incompletas e ambientes não posicionados são listados como avisos. Tipos precisam ter a espessura cadastrada (tolerância de comparação 0,1 mm). Não altera tipos do Revit.
+Não inventa elevações, tipos ou alturas. Paredes incompletas e ambientes não posicionados são listados como avisos. Cria tipos LAC com uma camada e a espessura cadastrada, duplicando a referência escolhida. Material é herdado da referência, não inferido pelo nome. Não altera tipos existentes.
 
 Importação em uma transação: falha reverte o lote. IDs registrados nos comentários impedem repetir a mesma parede no mesmo projeto/pavimento. Não edita paredes importadas anteriormente nem faz sincronização bidirecional. Não remova os marcadores LAC dos comentários se quiser manter essa proteção.
 

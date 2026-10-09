@@ -96,3 +96,4 @@ button.primary, .module-flow .primary, .wall-actions .primary, .photo-capture-ac
  .module-overview button { min-height:74px; }
  .sketch-panel .zoom-tools { gap:5px; flex-wrap:wrap; }
 }
+.exports-page { padding:24px; margin-top:0; } .exports-page>summary { display:none; } .exports-page .export-actions { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; } @media(max-width:800px) { .exports-page { padding:16px; } }

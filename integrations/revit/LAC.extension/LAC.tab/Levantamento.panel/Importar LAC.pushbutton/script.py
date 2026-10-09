@@ -32,17 +32,24 @@ def main():
         data = json.loads(stream.read().decode('utf-8-sig'))
     validate(data)
     wall_types = [t for t in DB.FilteredElementCollector(doc).OfClass(DB.WallType) if t.Kind == DB.WallKind.Basic]
-    widths = sorted(set(w['thicknessM'] for w in data['walls']))
+    if not wall_types:
+        forms.alert('O projeto precisa ter pelo menos um tipo de parede básica como referência.', exitscript=True)
+    template_name = forms.SelectFromList.show(sorted(revit.query.get_name(t) for t in wall_types), title='Referência para criar tipos LAC (uma camada simplificada)', multiselect=False)
+    if not template_name:
+        return
+    template = next(t for t in wall_types if revit.query.get_name(t) == template_name)
     mapping = {}
-    for width in widths:
-        candidates = [t for t in wall_types if abs(t.Width * METERS_PER_FOOT - width) < 0.0001]
-        names = {revit.query.get_name(t): t for t in candidates}
-        if not names:
-            forms.alert('Crie um tipo de parede básica de {0:g} mm e tente novamente. Nenhuma medida será adaptada.'.format(width * 1000), exitscript=True)
-        selected = forms.SelectFromList.show(sorted(names), title='Tipo para {0:g} mm'.format(width * 1000), multiselect=False)
-        if not selected:
-            return
-        mapping[width] = names[selected]
+    type_specs = {}
+    for wall in data['walls']:
+        name = 'LAC - {0} - {1:g} mm'.format(wall.get('typeName') or 'Parede', wall['thicknessM'] * 1000)
+        wall['_typeName'] = name
+        type_specs[name] = wall['thicknessM']
+    for name, width in type_specs.items():
+        existing_type = next((t for t in wall_types if revit.query.get_name(t) == name), None)
+        if existing_type:
+            if abs(existing_type.Width * METERS_PER_FOOT - width) >= 0.0001:
+                raise ValueError('Tipo LAC existente com espessura divergente: ' + name)
+            mapping[name] = existing_type
     marker_prefix = 'LAC:{0}:{1}:'.format(data['project']['id'], data['floor']['id'])
     existing = set()
     for wall in DB.FilteredElementCollector(doc).OfClass(DB.Wall):
@@ -65,6 +72,19 @@ def main():
     def xyz(point):
         return DB.XYZ(*[v / METERS_PER_FOOT for v in point])
     with revit.Transaction('Importar levantamento LAC'):
+        from System.Collections.Generic import List
+        for name, width in type_specs.items():
+            if name in mapping:
+                continue
+            new_type = template.Duplicate(name)
+            structure = template.GetCompoundStructure()
+            material_id = DB.ElementId.InvalidElementId
+            if structure and structure.LayerCount:
+                material_id = structure.GetMaterialId(0)
+            layers = List[DB.CompoundStructureLayer]()
+            layers.Add(DB.CompoundStructureLayer(width / METERS_PER_FOOT, DB.MaterialFunctionAssignment.Structure, material_id))
+            new_type.SetCompoundStructure(DB.CompoundStructure.CreateSimpleCompoundStructure(layers))
+            mapping[name] = new_type
         if not level:
             level = DB.Level.Create(doc, elevation)
             level.Name = name
@@ -72,7 +92,7 @@ def main():
             a, b = xyz(wall['start']), xyz(wall['end'])
             if a.DistanceTo(b) <= doc.Application.ShortCurveTolerance:
                 raise ValueError('Parede muito curta para o Revit: ' + wall['label'])
-            element = DB.Wall.Create(doc, DB.Line.CreateBound(a, b), mapping[wall['thicknessM']].Id, level.Id, wall['heightM'] / METERS_PER_FOOT, 0, False, False)
+            element = DB.Wall.Create(doc, DB.Line.CreateBound(a, b), mapping[wall['_typeName']].Id, level.Id, wall['heightM'] / METERS_PER_FOOT, 0, False, False)
             element.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(key)
     forms.alert('{0} paredes criadas. Confira o resultado em uma vista 3D.'.format(len(incoming)))
 
