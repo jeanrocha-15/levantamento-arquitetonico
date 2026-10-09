@@ -24,6 +24,29 @@ def validate(data):
         if not all(finite(wall[k]) and wall[k] > 0 for k in ('heightM', 'thicknessM')):
             raise ValueError('Altura/espessura inv\xe1lida.')
 
+def physical_openings(items):
+    result = []
+    def xy(a, b):
+        return math.hypot(a[0] - b[0], a[1] - b[1])
+    for original in items:
+        item = dict(original)
+        refs = list(item.get('sourceRefs') or [{'roomId': item['roomId'], 'id': item['id']}])
+        item['sourceRefs'] = refs
+        match = None
+        for prior in result:
+            same_vertical = abs(prior['start'][2] - item['start'][2]) < 0.000001 and abs(prior['end'][2] - item['end'][2]) < 0.000001
+            same_span = (xy(prior['start'], item['start']) < 0.000001 and xy(prior['end'], item['end']) < 0.000001) or (xy(prior['start'], item['end']) < 0.000001 and xy(prior['end'], item['start']) < 0.000001)
+            if prior['hostWallId'] == item['hostWallId'] and same_vertical and same_span:
+                match = prior
+                break
+        if match:
+            for ref in refs:
+                if ref not in match['sourceRefs']:
+                    match['sourceRefs'].append(ref)
+        else:
+            result.append(item)
+    return result
+
 def main():
     doc = revit.doc
     if doc.IsFamilyDocument:
@@ -43,8 +66,10 @@ def main():
             with open(path, 'rb') as stream:
                 data = json.loads(stream.read().decode('utf-8-sig'))
             validate(data)
+            data['openings'] = physical_openings(data.get('openings', []))
             # Compare model data, not file timestamps or formatting.
             model_data = {key: data.get(key) for key in ('schemaVersion', 'units', 'project', 'floor', 'walls', 'openings')}
+            model_data['importerRevision'] = 2
             fingerprint = hashlib.sha256(json.dumps(model_data, sort_keys=True, ensure_ascii=True).encode('utf-8')).hexdigest()
             if update_mode and saved.get('fingerprint') == fingerprint:
                 reason = 'N\xe3o h\xe1 altera\xe7\xf5es no modelo desde a \xfaltima importa\xe7\xe3o bem-sucedida.\n' + path
@@ -163,7 +188,12 @@ def main():
             legacy = old_cuts.get('LAC abertura: ' + opening['label'])
             if update_mode and legacy and legacy.Host.Id == host.Id:
                 doc.Delete(legacy.Id)
-            cut = doc.Create.NewOpening(host, xyz(opening['start']), xyz(opening['end']))
+            doc.Regenerate()
+            try:
+                cut = doc.Create.NewOpening(host, xyz(opening['start']), xyz(opening['end']))
+                doc.Regenerate()
+            except Exception as error:
+                raise ValueError('Abertura {0}, parede {1}: {2}'.format(opening['label'], opening['hostWallId'], error))
             param = cut.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
             if param and not param.IsReadOnly:
                 param.Set(cut_key)
