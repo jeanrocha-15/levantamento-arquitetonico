@@ -18,9 +18,9 @@ export function layoutDimensions(requests:DimensionRequest[],obstacles:Dimension
  for(const request of requests){const length=Math.hypot(request.b.x-request.a.x,request.b.y-request.a.y);if(length<1e-9)continue
   const u={x:(request.b.x-request.a.x)/length,y:(request.b.y-request.a.y)/length},normal={x:u.y,y:-u.x},width=Math.max(font,request.text.length*font*.57),height=font*1.35
   let best:ArchitecturalDimension|undefined,bestScore=Infinity
-  search:for(const side of [request.side??1,-(request.side??1)] as (1|-1)[])for(let band=0;band<10;band++)for(const shift of [0,1.5,-1.5,3,-3,6,-6,10,-10]){
-   const n={x:normal.x*side,y:normal.y*side},line=dimensionLine(request.a,request.b,n,(request.thickness??0)+font*(2.5+band*2),font*.3,font*.55);if(!line)continue
-   line.text={x:line.text.x+u.x*font*shift,y:line.text.y+u.y*font*shift};const r=line.angle*Math.PI/180,bw=Math.abs(width*Math.cos(r))+Math.abs(height*Math.sin(r)),bh=Math.abs(width*Math.sin(r))+Math.abs(height*Math.cos(r)),box={x:line.text.x-bw/2,y:line.text.y-bh/2,width:bw,height:bh,polygon:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([sx,sy])=>({x:line.text.x+sx*width/2*Math.cos(r)-sy*height/2*Math.sin(r),y:line.text.y+sx*width/2*Math.sin(r)+sy*height/2*Math.cos(r)}))},stroke=pointsBox([line.from,line.to],font*.12)
+  search:for(let band=0;band<6;band++)for(const side of [request.side??1,-(request.side??1)] as (1|-1)[])for(const shift of [0,1.5,-1.5,3,-3,6,-6,10,-10]){
+   const n={x:normal.x*side,y:normal.y*side},line=dimensionLine(request.a,request.b,n,(request.thickness??0)+font*(2+band*1.5),font*.3,font*.55);if(!line)continue
+   const along=Math.max(-length/2,Math.min(length/2,font*shift));line.text={x:line.text.x+u.x*along,y:line.text.y+u.y*along};const r=line.angle*Math.PI/180,bw=Math.abs(width*Math.cos(r))+Math.abs(height*Math.sin(r)),bh=Math.abs(width*Math.sin(r))+Math.abs(height*Math.cos(r)),box={x:line.text.x-bw/2,y:line.text.y-bh/2,width:bw,height:bh,polygon:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([sx,sy])=>({x:line.text.x+sx*width/2*Math.cos(r)-sy*height/2*Math.sin(r),y:line.text.y+sx*width/2*Math.sin(r)+sy*height/2*Math.cos(r)}))},stroke=pointsBox([line.from,line.to],font*.12)
    const score=occupied.filter(a=>overlaps(a,box)||overlaps(a,stroke)).length
    if(score<bestScore){best={request,line,box,conflict:score>0,side};bestScore=score}
    if(!score)break search

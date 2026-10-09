@@ -83,3 +83,5 @@ label { font-size: 12px; font-weight: 600; line-height: 1.45; color: var(--ink);
  .plan-controls .editor { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+
+.dev-preview-badge{color:var(--accent)!important;font-size:10px!important;font-weight:700;letter-spacing:1px}

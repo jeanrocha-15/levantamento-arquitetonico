@@ -7,6 +7,7 @@ import './theme.css'
 import './styles.css'
 import './workspace.css'
 import './interface.css'
+import './referenceIdentity.css'
 import { applyTheme, loadTheme } from './theme'
 applyTheme(loadTheme())
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary><App /></ErrorBoundary></React.StrictMode>)

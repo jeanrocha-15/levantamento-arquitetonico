@@ -1,3 +1,4 @@
+import { storagePrefix } from './releaseChannel'
 import { prepareOpeningConnections } from './spatialConnections'
 import { validComposition } from './pdf/compositions'
 import { validSheetLayout } from './pdf/sheetSettings'
@@ -13,7 +14,7 @@ import { isMeasurementUnit } from './units'
 
 export const SCHEMA_VERSION = 13
 export { DATABASE_NAME, storageScope } from './database'
-const BASE_JOURNAL = 'campo-autosave-journal-v1', BASE_LOCAL = 'campo-local-workspace-v1'
+const BASE_JOURNAL = `${storagePrefix}campo-autosave-journal-v1`, BASE_LOCAL = `${storagePrefix}campo-local-workspace-v1`
 export const JOURNAL_KEY = `${BASE_JOURNAL}${scope}`
 const LOCAL_KEY = `${BASE_LOCAL}${scope}`
 export interface WorkspaceData { projects: Project[]; projectId: string; floorId: string; roomId: string }

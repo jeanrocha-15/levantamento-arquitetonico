@@ -1,4 +1,5 @@
 import LocalCleanupPanel from './LocalCleanupPanel'
+import RevitExportPanel from './RevitExportPanel'
 import { scopedProject, exportScopeNames } from './exportScope'
 import type { ExportScope } from './exportScope'
 import { useRef, useState } from 'react'
@@ -37,6 +38,7 @@ export default function ExportPanel({ workspace, project, floor, room, onImport,
     <PdfExportPanel onChangeProject={onChangeProject} project={project} floor={floor} room={room}/>
     <ProjectArchivePanel workspace={workspace} project={project} onImport={onImport}/>
     <p className="muted">O arquivo .levantamento leva o projeto inteiro com as fotos; o backup JSON guarda as medidas (sem as imagens). Ambos podem ser importados em outro navegador ou aparelho.</p>
+    <RevitExportPanel key={project.id} project={project}/>
     <LocalCleanupPanel workspace={workspace} onReset={onImport}/>
     <ServerHistory/>
     {message && <p className={message.type === 'error' ? 'export-error' : 'export-ok'} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</p>}

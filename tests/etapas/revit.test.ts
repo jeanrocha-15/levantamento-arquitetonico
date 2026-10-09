@@ -1,0 +1,7 @@
+import {it,expect} from 'vitest'
+import {createRoom} from '../../src/domain'
+import type {Project} from '../../src/models'
+import {createRevitExchange} from '../../src/revitExport'
+function fixture(){const room=createRoom('Sala','f');room.ceilingHeightM=3;room.walls=[4,3,4,3].map((lengthM,i)=>({id:`w${i}`,label:String.fromCharCode(65+i),lengthM,thickness:.15}));const project:Project={id:'p',name:'Teste',floors:[{id:'f',name:'Térreo',rooms:[room]}],relationships:[],roomPlacements:[{roomId:room.id,floorId:'f',x:10,y:20,rotation:90}]};return {project,room}}
+it('preserva medidas e usa transformação rígida com eixo Y convertido',()=>{const {project}=fixture(),original=JSON.stringify(project),data=createRevitExchange(project,'f',2);expect(data.walls).toHaveLength(4);expect(data.walls[0].measuredLengthM).toBe(4);expect(data.walls[0].start[2]).toBe(2);expect(data.walls[0].start[0]).toBeCloseTo(10.075);expect(data.walls[0].start[1]).toBeCloseTo(-19.925);expect(data.walls[0].heightM).toBe(3);expect(JSON.stringify(project)).toBe(original)})
+it('não inventa posicionamento, altura ou elevação',()=>{const {project,room}=fixture();expect(()=>createRevitExchange(project,'f',NaN)).toThrow();project.roomPlacements=[];expect(()=>createRevitExchange(project,'f',0)).toThrow();project.roomPlacements=[{roomId:room.id,floorId:'f',x:0,y:0,rotation:0}];room.ceilingHeightM=null;expect(()=>createRevitExchange(project,'f',0)).toThrow()})

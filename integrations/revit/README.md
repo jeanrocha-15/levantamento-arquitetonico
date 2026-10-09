@@ -1,0 +1,26 @@
+# LAC → Revit 2026.1
+
+Integração inicial via arquivo JSON + Python no pyRevit. O site continua React e não exige servidor.
+
+1. Instale uma versão do pyRevit compatível com seu Revit 2026.1: https://docs.pyrevitlabs.io/
+2. Copie a pasta `LAC.extension` para a pasta de extensões do pyRevit (normalmente `%APPDATA%\pyRevit\Extensions`). Recarregue o pyRevit.
+3. No LAC, posicione os ambientes na Planta Geral. Preencha espessuras e pé-direito.
+4. Em Exportar e importar → Integração Revit, selecione pavimento e informe sua elevação em metros. Exporte LAC-Revit.json.
+5. Abra um projeto Revit de teste e clique LAC → Levantamento → Importar LAC. Selecione o JSON e os tipos de parede existentes com espessura correspondente.
+6. Confirme a importação e confira a vista 3D. Use Desfazer no Revit para reverter.
+
+## Contrato
+
+`format: lac-revit`, `schemaVersion: 1`, `units: m`. Eixos de parede derivados das faces físicas do croqui; aplica RoomPlacement sem escala individual e converte Y da tela para Y cartesiano. No script, metros são convertidos para pés internos do Revit. O JSON também guarda os dados originais, IDs e RoomPlacements sem fotos binárias.
+
+Não inventa elevações, tipos ou alturas. Paredes incompletas e ambientes não posicionados são listados como avisos. Tipos precisam ter a espessura cadastrada (tolerância de comparação 0,1 mm). Não altera tipos do Revit.
+
+Importação em uma transação: falha reverte o lote. IDs registrados nos comentários impedem repetir a mesma parede no mesmo projeto/pavimento. Não edita paredes importadas anteriormente nem faz sincronização bidirecional. Não remova os marcadores LAC dos comentários se quiser manter essa proteção.
+
+## Limites
+
+Portas/janelas/vãos ainda não cortam as paredes; famílias, pisos, telhados e objetos não são criados. Paredes compartilhadas independentes podem gerar sobreposição: conferir antes de usar como modelo definitivo. Compatibilizações de medidas não substituem os dados originais exportados. Croquis aproximados continuam aproximados.
+
+Compilação e contrato podem ser testados fora do Revit; criação real precisa ser validada em Revit 2026.1 com pyRevit instalado. Esta integração não foi executada em um Revit nesta máquina.
+
+Referências: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/0ce4c555-4cee-f5fd-2e84-43cacf34ac5c.htm e https://docs.pyrevitlabs.io/extensions/

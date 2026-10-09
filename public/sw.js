@@ -1,14 +1,15 @@
 // Service worker do LAC: permite abrir a aplicação sem conexão (uso em campo).
 // Os dados dos levantamentos ficam no IndexedDB; aqui só são guardados os arquivos da aplicação.
-const CACHE = 'campo-app-v4-clean-start'
 const scope = new URL(self.registration.scope)
+const PREFIX = scope.pathname.endsWith('/dev/') ? 'lac-dev-app-' : 'campo-app-'
+const CACHE = `${PREFIX}v5-preview`
 const isIndex = url => url.pathname === scope.pathname || url.pathname === `${scope.pathname}index.html`
 const isAsset = url => url.pathname.startsWith(`${scope.pathname}assets/`)
 const isStatic = url => /\/(lac-[\w-]+\.(?:svg|png|ico)|favicon\.(?:svg|ico)|manifest\.webmanifest|icon-[\w-]+\.png|apple-touch-icon\.png)$/.test(url.pathname)
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil((async () => {
-  for (const key of await caches.keys()) if (key.startsWith('campo-app-') && key !== CACHE) await caches.delete(key)
+  for (const key of await caches.keys()) if (key.startsWith(PREFIX) && key !== CACHE) await caches.delete(key)
   await self.clients.claim()
 })()))
 

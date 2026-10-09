@@ -108,7 +108,7 @@ export function placeOpeningLabels(placements: OpeningPlacement[], project: (poi
     const lines = [opening.label, `${formatMeasurement(opening.widthM,unit,false)} × ${formatMeasurement(opening.heightM,unit)}`, `${formatMeasurement(opening.offsetM,unit)} de ${placement.reference.label}`]
     if (opening.type === 'window') lines.push(`P=${formatMeasurement(opening.sillHeightM,unit)}`)
     const width = Math.min(130, Math.max(64, ...lines.map(line => line.length * 5.3 + 8)))
-    const candidates = [44, 90, 136, -44, -90].flatMap(distance => [0, -35, 35, -55, 55, -80, 80].map(shift => {
+    const candidates = [30, -30, 48, -48, 66, -66, 84, -84].flatMap(distance => [0, -35, 35, -55, 55, -80, 80].map(shift => {
       const x = Math.max(width / 2 + 8, Math.min(432 - width / 2, anchor.x + normal.x * distance + placement.direction.x * shift))
       const y = Math.max(56, Math.min(330 - height, anchor.y + normal.y * distance + placement.direction.y * shift - 6))
       const box = { x: x - width / 2, y: y - 11, width, height }
