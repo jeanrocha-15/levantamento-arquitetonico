@@ -30,8 +30,8 @@ export interface InternalWall {
 }
 export type RoomRelationshipType = 'opening_connection' | 'shared_wall' | 'adjacency' | 'manual_reference' | 'corner'
 export interface SpatialSide { roomId: string; elementId?: string; wallId?: string; face?: 'internal' | 'external' }
-export interface SpatialConnection { id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; assembly?: boolean; flipped?: boolean; assemblyLocked?: boolean; assemblyDetached?: boolean; note?: string }
-export interface RoomRelationship {
+export interface SpatialConnection { secondary?:boolean; id: string; type: 'opening' | 'corner' | 'shared_wall' | 'manual'; a: SpatialSide; b: SpatialSide; orientation?: 'normal' | 'inverted'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; assembly?: boolean; flipped?: boolean; assemblyLocked?: boolean; assemblyDetached?: boolean; note?: string }
+export interface RoomRelationship { secondary?:boolean;
   id: string; type: RoomRelationshipType; sourceRoomId: string; sourceElementId?: string;
   targetRoomId: string; targetElementId?: string; note?: string; spatialConnectionId?: string; orientation?: 'normal' | 'inverted'; sourceFace?: 'internal' | 'external'; targetFace?: 'internal' | 'external'; placementMode?: 'inside' | 'outside'; sharedWallId?: string; derivedFromCornerId?: string
 }

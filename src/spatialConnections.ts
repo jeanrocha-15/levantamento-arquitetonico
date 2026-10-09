@@ -86,7 +86,7 @@ export function reconcileSpatialConnections(project:Project):Project {
     for(const wall of room.walls)if(wall.sharedWallReference)add('shared_wall',{roomId:room.id,elementId:wall.id},{roomId:wall.sharedWallReference.roomId,elementId:wall.sharedWallReference.wallId})
   }
   for(const c of project.spatialConnections ?? []) {
-    if((c.type==='opening'||c.type==='shared_wall')&&!c.assembly)continue
+    if((c.type==='opening'||c.type==='shared_wall')&&!c.assembly&&!c.secondary)continue
     const a=byId.get(c.a.roomId),b=byId.get(c.b.roomId)
     if(!a||!b||a.id===b.id)continue
     const owns=(r:Room,elementId?:string)=>!elementId || [...r.corners,...r.walls,...r.internalWalls,...r.openings,...r.objects??[]].some(e=>e.id===elementId)
