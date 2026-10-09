@@ -12,7 +12,7 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
  const conflicts=wallConflicts(project,floorId,project.roomPlacements??[])
  if(conflicts.length)throw new Error(conflicts.map(c=>c.message).join(' '))
  const warnings:string[]=[]
- const openings:{id:string;label:string;type:string;hostWallId:string;roomId:string;start:number[];end:number[]}[]=[]
+ const openings:{id:string;label:string;type:string;hostWallId:string;roomId:string;physicalKey:string;sourceRefs:{roomId:string;id:string}[];start:number[];end:number[]}[]=[]
  const walls: {id:string;roomId:string;label:string;start:number[];end:number[];heightM:number;thicknessM:number;typeName:string;measuredLengthM:number|null}[]=[]
  for(const room of floorRooms(project,floorId)) {
   const placement=project.roomPlacements?.find(p=>p.roomId===room.id&&p.floorId===floorId)
@@ -33,9 +33,14 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
    const o=item.opening,host=walls.find(w=>w.id===o.wallId&&w.roomId===room.id)
    if(!host||!o.heightM||o.heightM<=0||o.type==='window'&&(o.sillHeightM==null||o.sillHeightM<0)) {warnings.push(`${room.name}/${o.label}: abertura incompleta.`);continue}
    const a=worldPoint(item.start,placement),b=worldPoint(item.end,placement)
-   const project=(p:{x:number;y:number})=>{const dx=host.end[0]-host.start[0],dy=host.end[1]-host.start[1],t=((p.x-host.start[0])*dx+(-p.y-host.start[1])*dy)/(dx*dx+dy*dy);return [host.start[0]+t*dx,host.start[1]+t*dy]}
-   const start=project(a),end=project(b),sill=o.type==='window'?o.sillHeightM!:0
-   openings.push({id:o.id,label:o.label,type:o.type,hostWallId:host.id,roomId:room.id,start:[...start,elevationM+sill],end:[...end,elevationM+sill+o.heightM]})
+   const projectToWall=(p:{x:number;y:number})=>{const dx=host.end[0]-host.start[0],dy=host.end[1]-host.start[1],t=((p.x-host.start[0])*dx+(-p.y-host.start[1])*dy)/(dx*dx+dy*dy);return [host.start[0]+t*dx,host.start[1]+t*dy]}
+   const start=projectToWall(a),end=projectToWall(b),sill=o.type==='window'?o.sillHeightM!:0
+   const refs=[{roomId:room.id,id:o.id}]
+   if(o.connectedRoomId&&o.connectedOpeningId)refs.push({roomId:o.connectedRoomId,id:o.connectedOpeningId})
+   const connection=project.spatialConnections?.find(c=>c.type==='opening'&&[c.a,c.b].some(side=>side.roomId===room.id&&side.elementId===o.id))
+   if(connection)for(const side of [connection.a,connection.b])if(side.elementId&&!refs.some(r=>r.roomId===side.roomId&&r.id===side.elementId))refs.push({roomId:side.roomId,id:side.elementId})
+   const physicalKey=refs.map(r=>r.roomId+':'+r.id).sort().join('|')
+   openings.push({physicalKey,sourceRefs:refs,id:o.id,label:o.label,type:o.type,hostWallId:host.id,roomId:room.id,start:[...start,elevationM+sill],end:[...end,elevationM+sill+o.heightM]})
   }
  }
  if(warnings.length) throw new Error(`Exportação incompleta. Corrija antes de exportar: ${warnings.join(' ')}`)
@@ -63,7 +68,17 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
   a.sourceIds.push(...b.sourceIds);for(const o of openings)if(b.sourceIds.includes(o.hostWallId))o.hostWallId=a.id
   merged.splice(j,1);j--
  }
- const uniqueOpenings=openings.filter((o,i)=>!openings.slice(0,i).some(p=>p.hostWallId===o.hostWallId&&Math.hypot(p.start[0]-o.start[0],p.start[1]-o.start[1])<1e-6&&Math.hypot(p.end[0]-o.end[0],p.end[1]-o.end[1])<1e-6&&p.start[2]===o.start[2]&&p.end[2]===o.end[2]))
+ const xyDistance=(a:number[],b:number[])=>Math.hypot(a[0]-b[0],a[1]-b[1])
+ const equivalent=(a:typeof openings[number],b:typeof openings[number])=>a.hostWallId===b.hostWallId&&a.type===b.type&&Math.abs(a.start[2]-b.start[2])<1e-6&&Math.abs(a.end[2]-b.end[2])<1e-6&&((xyDistance(a.start,b.start)<1e-6&&xyDistance(a.end,b.end)<1e-6)||(xyDistance(a.start,b.end)<1e-6&&xyDistance(a.end,b.start)<1e-6))
+ const uniqueOpenings:typeof openings=[]
+ for(const o of [...openings].sort((a,b)=>(a.roomId+':'+a.id).localeCompare(b.roomId+':'+b.id))) {
+  const prior=uniqueOpenings.find(p=>p.physicalKey===o.physicalKey||p.sourceRefs.some(r=>o.sourceRefs.some(s=>r.roomId===s.roomId&&r.id===s.id))||equivalent(p,o))
+  if(prior){
+   if(!equivalent(prior,o))throw new Error(`Abertura vinculada ${o.label}: as duas pontas estão desalinhadas ou com dimensões diferentes. Confira o encaixe antes de exportar.`)
+   for(const ref of o.sourceRefs)if(!prior.sourceRefs.some(r=>r.roomId===ref.roomId&&r.id===ref.id))prior.sourceRefs.push(ref)
+  }else uniqueOpenings.push(o)
+ }
+
  if(!walls.length) throw new Error('Nenhuma parede válida e posicionada para exportar.')
  return {format:'lac-revit',schemaVersion:1,units:'m',project:{id:project.id,name:project.name},floor:{id:floor.id,name:floor.name,elevationM},walls:merged,openings:uniqueOpenings,heightAssumptions:floorRooms(project,floorId).map(r=>({roomId:r.id,...roomWallHeight(r)})),warnings,sourceRooms:floorRooms(project,floorId),roomPlacements:project.roomPlacements?.filter(p=>p.floorId===floorId)??[],limitations:['Aberturas são recortes retangulares, sem folhas ou caixilhos.','Paredes compartilhadas permanecem independentes; confira duplicações no Revit.']}
 }

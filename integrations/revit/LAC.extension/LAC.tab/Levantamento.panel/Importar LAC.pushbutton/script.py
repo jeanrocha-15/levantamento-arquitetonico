@@ -149,6 +149,11 @@ def main():
             if not host:
                 continue
             cut_key = marker_prefix + 'opening:' + opening['roomId'] + ':' + opening['id']
+            if update_mode:
+                for ref in opening.get('sourceRefs', []):
+                    alias_key = marker_prefix + 'opening:' + ref['roomId'] + ':' + ref['id']
+                    if alias_key != cut_key and alias_key in old_cuts:
+                        doc.Delete(old_cuts.pop(alias_key).Id)
             old_cut = old_cuts.get(cut_key)
             if old_cut:
                 if not update_mode:
