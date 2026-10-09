@@ -1,3 +1,4 @@
+import {roomWallHeight} from './ceilingHeight'
 import type { Project } from './models'
 import { floorRooms, buildPlanRoom, worldPoint } from './floorPlan'
 import { buildWallFaces } from './wallFaces'
@@ -14,7 +15,7 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
   const placement=project.roomPlacements?.find(p=>p.roomId===room.id&&p.floorId===floorId)
   if(!placement) {warnings.push(`${room.name}: não posicionado na Planta Geral.`);continue}
   const shape=buildPlanRoom(room)
-  const segments=[...shape.survey.perimeter.segments.map(s=>({id:s.wall.id,label:s.wall.label,start:s.start,end:s.end,thickness:s.wall.thickness,typeName:s.wall.customWallType||({masonry:'Alvenaria',drywall:'Drywall',concrete:'Concreto',glass:'Vidro',wood:'Madeira',partition:'Divisória',other:'Outro'}[s.wall.wallType??'other']),height:room.ceilingHeightM,length:s.wall.lengthM})),...shape.survey.internalWalls.placements.map(s=>({id:s.internalWall.id,label:s.internalWall.label,start:s.start,end:s.end,thickness:s.internalWall.thicknessM,typeName:'Parede interna',height:s.internalWall.heightM??room.ceilingHeightM,length:s.internalWall.lengthM}))]
+  const segments=[...shape.survey.perimeter.segments.map(s=>({id:s.wall.id,label:s.wall.label,start:s.start,end:s.end,thickness:s.wall.thickness,typeName:s.wall.customWallType||({masonry:'Alvenaria',drywall:'Drywall',concrete:'Concreto',glass:'Vidro',wood:'Madeira',partition:'Divisória',other:'Outro'}[s.wall.wallType??'other']),height:roomWallHeight(room).wallHeightM,length:s.wall.lengthM})),...shape.survey.internalWalls.placements.map(s=>({id:s.internalWall.id,label:s.internalWall.label,start:s.start,end:s.end,thickness:s.internalWall.thicknessM,typeName:'Parede interna',height:s.internalWall.heightM??roomWallHeight(room).wallHeightM,length:s.internalWall.lengthM}))]
   for(const s of segments) {
    if(!s.height||!Number.isFinite(s.height)||s.height<=0||!s.thickness||!Number.isFinite(s.thickness)||s.thickness<=0) {warnings.push(`${room.name}/${s.label}: informe pé-direito e espessura válidos.`);continue}
    // Midpoint of two joined faces gives the physical wall axis.
@@ -61,5 +62,5 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
  }
  const uniqueOpenings=openings.filter((o,i)=>!openings.slice(0,i).some(p=>p.hostWallId===o.hostWallId&&Math.hypot(p.start[0]-o.start[0],p.start[1]-o.start[1])<1e-6&&Math.hypot(p.end[0]-o.end[0],p.end[1]-o.end[1])<1e-6&&p.start[2]===o.start[2]&&p.end[2]===o.end[2]))
  if(!walls.length) throw new Error('Nenhuma parede válida e posicionada para exportar.')
- return {format:'lac-revit',schemaVersion:1,units:'m',project:{id:project.id,name:project.name},floor:{id:floor.id,name:floor.name,elevationM},walls:merged,openings:uniqueOpenings,warnings,sourceRooms:floorRooms(project,floorId),roomPlacements:project.roomPlacements?.filter(p=>p.floorId===floorId)??[],limitations:['Aberturas são recortes retangulares, sem folhas ou caixilhos.','Paredes compartilhadas permanecem independentes; confira duplicações no Revit.']}
+ return {format:'lac-revit',schemaVersion:1,units:'m',project:{id:project.id,name:project.name},floor:{id:floor.id,name:floor.name,elevationM},walls:merged,openings:uniqueOpenings,heightAssumptions:floorRooms(project,floorId).map(r=>({roomId:r.id,...roomWallHeight(r)})),warnings,sourceRooms:floorRooms(project,floorId),roomPlacements:project.roomPlacements?.filter(p=>p.floorId===floorId)??[],limitations:['Aberturas são recortes retangulares, sem folhas ou caixilhos.','Paredes compartilhadas permanecem independentes; confira duplicações no Revit.']}
 }

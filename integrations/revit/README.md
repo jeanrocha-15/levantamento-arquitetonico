@@ -30,3 +30,5 @@ Referências: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReferen
 A exportação agora exige dados completos; confira o pé-direito de todos os ambientes. Portas/janelas/vãos são recortes retangulares nas posições medidas, sem famílias de folhas e caixilhos. Eixos coincidentes de mesma espessura são consolidados; alturas diferentes preservam a parede mais alta no trecho comum e os trechos exclusivos da menor. Dados originais permanecem separados. Paredes próximas mas não colineares continuam independentes.
 
 Para substituir o resultado antigo, use um projeto Revit limpo ou desfaça a importação antiga antes de importar o novo JSON. Não há atualização automática de elementos existentes.
+
+Pé-direito vazio: padrão presumido 2,50 m. Fechamento Forro (padrão): +0,50 m automático na altura das paredes exportadas. Laje: sem acréscimo. Alturas específicas de PI são preservadas. O valor medido não é substituído; heightAssumptions registra as hipóteses no JSON.
