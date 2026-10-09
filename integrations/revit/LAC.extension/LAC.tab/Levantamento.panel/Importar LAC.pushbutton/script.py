@@ -61,7 +61,7 @@ def main():
     if not incoming:
         forms.alert('Estas paredes já foram importadas. A atualização de paredes existentes ainda não é automática.')
         return
-    if not forms.alert('Criar {0} paredes? Aberturas não serão cortadas nesta versão. Confira paredes compartilhadas após importar.'.format(len(incoming)), yes=True, no=True):
+    if not forms.alert('Criar {0} paredes? As aberturas serão recortes retangulares, sem famílias de portas/janelas. Use um projeto limpo para substituir a importação antiga.'.format(len(incoming)), yes=True, no=True):
         return
     elevation = data['floor']['elevationM'] / METERS_PER_FOOT
     name = 'LAC - ' + data['floor']['name'] + ' - ' + data['floor']['id']
@@ -88,12 +88,22 @@ def main():
         if not level:
             level = DB.Level.Create(doc, elevation)
             level.Name = name
+        hosts = {}
         for wall, key in incoming:
             a, b = xyz(wall['start']), xyz(wall['end'])
             if a.DistanceTo(b) <= doc.Application.ShortCurveTolerance:
                 raise ValueError('Parede muito curta para o Revit: ' + wall['label'])
             element = DB.Wall.Create(doc, DB.Line.CreateBound(a, b), mapping[wall['_typeName']].Id, level.Id, wall['heightM'] / METERS_PER_FOOT, 0, False, False)
             element.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(key)
+            hosts[wall['id']] = element
+        for opening in data.get('openings', []):
+            host = hosts.get(opening['hostWallId'])
+            if not host:
+                continue
+            cut = doc.Create.NewOpening(host, xyz(opening['start']), xyz(opening['end']))
+            param = cut.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+            if param and not param.IsReadOnly:
+                param.Set('LAC abertura: ' + opening['label'])
     forms.alert('{0} paredes criadas. Confira o resultado em uma vista 3D.'.format(len(incoming)))
 
 if __name__ == '__main__':

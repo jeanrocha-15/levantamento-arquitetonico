@@ -19,8 +19,14 @@ Importação em uma transação: falha reverte o lote. IDs registrados nos comen
 
 ## Limites
 
-Portas/janelas/vãos ainda não cortam as paredes; famílias, pisos, telhados e objetos não são criados. Paredes compartilhadas independentes podem gerar sobreposição: conferir antes de usar como modelo definitivo. Compatibilizações de medidas não substituem os dados originais exportados. Croquis aproximados continuam aproximados.
+Recortes de portas/janelas/vãos são criados; famílias, pisos, telhados e objetos não são criados. Confira paredes não colineares antes de usar como modelo definitivo. Compatibilizações de medidas não substituem os dados originais exportados. Croquis aproximados continuam aproximados.
 
 Compilação e contrato podem ser testados fora do Revit; criação real precisa ser validada em Revit 2026.1 com pyRevit instalado. Esta integração não foi executada em um Revit nesta máquina.
 
 Referências: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/0ce4c555-4cee-f5fd-2e84-43cacf34ac5c.htm e https://docs.pyrevitlabs.io/extensions/
+
+## Atualização: aberturas e paredes coincidentes
+
+A exportação agora exige dados completos; confira o pé-direito de todos os ambientes. Portas/janelas/vãos são recortes retangulares nas posições medidas, sem famílias de folhas e caixilhos. Eixos coincidentes de mesma espessura são consolidados; alturas diferentes preservam a parede mais alta no trecho comum e os trechos exclusivos da menor. Dados originais permanecem separados. Paredes próximas mas não colineares continuam independentes.
+
+Para substituir o resultado antigo, use um projeto Revit limpo ou desfaça a importação antiga antes de importar o novo JSON. Não há atualização automática de elementos existentes.

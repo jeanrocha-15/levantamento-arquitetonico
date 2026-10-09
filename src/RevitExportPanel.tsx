@@ -7,7 +7,7 @@ export default function RevitExportPanel({project}:{project:Project}) {
  const [elevation,setElevation]=useState('0')
  const [message,setMessage]=useState('')
  return <details className="ui-disclosure"><summary>Integração Revit (Python / pyRevit)</summary><div>
- <p>Exporta paredes externas e internas posicionadas na Planta Geral. Portas, janelas e objetos ficam registrados no arquivo, mas ainda não são modelados no Revit.</p>
+ <p>Exporta paredes externas e internas posicionadas na Planta Geral. Portas, janelas e vãos serão recortes retangulares; folhas e caixilhos ainda não são criados. Objetos não são modelados.</p>
  <label>Pavimento<select value={floorId} onChange={e=>setFloorId(e.target.value)}>{project.floors.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
  <label>Elevação do pavimento (m)<input value={elevation} onChange={e=>setElevation(e.target.value)} inputMode="decimal"/></label>
  <button onClick={()=>{try {if(!elevation.trim())throw new Error('Informe a elevação.');const data=createRevitExchange(project,floorId,Number(elevation.replace(',','.')));downloadText('LAC-Revit.json',JSON.stringify(data,null,2),'application/json');setMessage(`${data.walls.length} paredes exportadas. ${data.warnings.join(' ')}`)}catch(e){setMessage(e instanceof Error?e.message:'Erro ao exportar.')}}}>Exportar para Revit</button>

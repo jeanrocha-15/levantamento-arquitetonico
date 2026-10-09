@@ -8,6 +8,7 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
  const floor=project.floors.find(f=>f.id===floorId)
  if(!floor) throw new Error('Selecione um pavimento.')
  const warnings:string[]=[]
+ const openings:{id:string;label:string;type:string;hostWallId:string;roomId:string;start:number[];end:number[]}[]=[]
  const walls: {id:string;roomId:string;label:string;start:number[];end:number[];heightM:number;thicknessM:number;typeName:string;measuredLengthM:number|null}[]=[]
  for(const room of floorRooms(project,floorId)) {
   const placement=project.roomPlacements?.find(p=>p.roomId===room.id&&p.floorId===floorId)
@@ -24,7 +25,41 @@ export function createRevitExchange(project:Project, floorId:string, elevationM:
    // SVG y-down -> Revit y-up. No scaling per room.
    walls.push({id:s.id,roomId:room.id,label:s.label,start:[start.x,-start.y,elevationM],end:[end.x,-end.y,elevationM],heightM:s.height,thicknessM:s.thickness,typeName:s.typeName,measuredLengthM:s.length})
   }
+  for(const layout of shape.survey.openings.wallLayouts) for(const item of layout.placements) {
+   const o=item.opening,host=walls.find(w=>w.id===o.wallId&&w.roomId===room.id)
+   if(!host||!o.heightM||o.heightM<=0||o.type==='window'&&(o.sillHeightM==null||o.sillHeightM<0)) {warnings.push(`${room.name}/${o.label}: abertura incompleta.`);continue}
+   const a=worldPoint(item.start,placement),b=worldPoint(item.end,placement)
+   const project=(p:{x:number;y:number})=>{const dx=host.end[0]-host.start[0],dy=host.end[1]-host.start[1],t=((p.x-host.start[0])*dx+(-p.y-host.start[1])*dy)/(dx*dx+dy*dy);return [host.start[0]+t*dx,host.start[1]+t*dy]}
+   const start=project(a),end=project(b),sill=o.type==='window'?o.sillHeightM!:0
+   openings.push({id:o.id,label:o.label,type:o.type,hostWallId:host.id,roomId:room.id,start:[...start,elevationM+sill],end:[...end,elevationM+sill+o.heightM]})
+  }
  }
+ if(warnings.length) throw new Error(`Exportação incompleta. Corrija antes de exportar: ${warnings.join(' ')}`)
+ // Consolidate collinear, overlapping physical wall axes. Source survey remains unchanged.
+ const merged=walls.map(w=>({...w,sourceIds:[w.id]}))
+ for(let i=0;i<merged.length;i++) for(let j=i+1;j<merged.length;j++) {
+  const a=merged[i],b=merged[j],dx=a.end[0]-a.start[0],dy=a.end[1]-a.start[1],len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len
+  const t=(p:number[])=>((p[0]-a.start[0])*ux+(p[1]-a.start[1])*uy)
+  const off=(p:number[])=>Math.abs((p[0]-a.start[0])*uy-(p[1]-a.start[1])*ux)
+  const lo=Math.min(t(b.start),t(b.end)),hi=Math.max(t(b.start),t(b.end))
+  if(off(b.start)>1e-6||off(b.end)>1e-6||lo>len+1e-6||hi< -1e-6||Math.abs(a.thicknessM-b.thicknessM)>1e-6) continue
+  if(Math.abs(a.heightM-b.heightM)>1e-6) {
+   if(Math.min(len,hi)-Math.max(0,lo)<=1e-6)continue
+   // Higher wall owns overlap; retain the lower wall only outside that interval.
+   if(a.heightM>b.heightM) { const temp=merged[i];merged[i]=merged[j];merged[j]=temp;i--;break }
+   const from=Math.max(0,lo),to=Math.min(len,hi),origin=[...a.start]
+   const at=(v:number)=>[origin[0]+v*ux,origin[1]+v*uy,origin[2]]
+   for(const o of openings)if(o.hostWallId===a.id){const center=(t(o.start)+t(o.end))/2;if(center>=from&&center<=to)o.hostWallId=b.id;else if(center>to)o.hostWallId=a.id+':tail'}
+   if(to<len-1e-6)merged.push({...a,id:a.id+':tail',start:at(to),end:at(len)})
+   if(from>1e-6)a.end=at(from);else {merged.splice(i,1);i--}
+   break
+  }
+  const origin=[...a.start],first=Math.min(0,lo),last=Math.max(len,hi)
+  a.start=[origin[0]+first*ux,origin[1]+first*uy,origin[2]];a.end=[origin[0]+last*ux,origin[1]+last*uy,origin[2]]
+  a.sourceIds.push(...b.sourceIds);for(const o of openings)if(b.sourceIds.includes(o.hostWallId))o.hostWallId=a.id
+  merged.splice(j,1);j--
+ }
+ const uniqueOpenings=openings.filter((o,i)=>!openings.slice(0,i).some(p=>p.hostWallId===o.hostWallId&&Math.hypot(p.start[0]-o.start[0],p.start[1]-o.start[1])<1e-6&&Math.hypot(p.end[0]-o.end[0],p.end[1]-o.end[1])<1e-6&&p.start[2]===o.start[2]&&p.end[2]===o.end[2]))
  if(!walls.length) throw new Error('Nenhuma parede válida e posicionada para exportar.')
- return {format:'lac-revit',schemaVersion:1,units:'m',project:{id:project.id,name:project.name},floor:{id:floor.id,name:floor.name,elevationM},walls,warnings,sourceRooms:floorRooms(project,floorId),roomPlacements:project.roomPlacements?.filter(p=>p.floorId===floorId)??[],limitations:['Importação inicial de paredes; aberturas e famílias não são criadas.','Paredes compartilhadas permanecem independentes; confira duplicações no Revit.']}
+ return {format:'lac-revit',schemaVersion:1,units:'m',project:{id:project.id,name:project.name},floor:{id:floor.id,name:floor.name,elevationM},walls:merged,openings:uniqueOpenings,warnings,sourceRooms:floorRooms(project,floorId),roomPlacements:project.roomPlacements?.filter(p=>p.floorId===floorId)??[],limitations:['Aberturas são recortes retangulares, sem folhas ou caixilhos.','Paredes compartilhadas permanecem independentes; confira duplicações no Revit.']}
 }
