@@ -72,3 +72,27 @@ input[type=checkbox], input[type=radio], progress { accent-color:var(--ui-focus)
 .room-tree .tree-row>.selected { background:color-mix(in srgb,var(--ink) 7%,var(--surface)); color:var(--ink); border-left:2px solid var(--ui-focus); }
 .room-tree .selected .room-display-id { color:var(--muted); }
 .workspace-header .header-theme, .workspace-header .sync-status, .workspace-header .session { color:var(--muted); }
+
+/* Contextual sizing: compact controls, regular actions and primary actions. */
+:root { --button-compact:32px; --button-regular:36px; --button-primary:42px; }
+button { min-height:var(--button-regular); padding:7px 12px; font-size:12px; line-height:1.35; max-width:100%; white-space:normal; }
+button.primary, .module-flow .primary, .wall-actions .primary, .photo-capture-actions>button:first-child { min-height:var(--button-primary); padding:9px 18px; font-size:13px; }
+.workspace-header .header-actions>button, .workspace-header .header-global-actions>summary, .workspace-header .header-theme select { min-height:var(--button-compact); padding:6px 10px; font-size:12px; margin-top:0; }
+.environment-navigation [role=tab] { min-height:var(--button-regular); padding:7px 10px; font-size:12px; white-space:nowrap; }
+.sketch-panel .zoom-tools button, .plan-main-toolbar button, .plan-canvas-tools button, .plan-context-actions button { min-height:var(--button-compact); padding:6px 10px; font-size:12px; }
+.sketch-panel .zoom-tools button[aria-label='Diminuir zoom'], .sketch-panel .zoom-tools button[aria-label='Aumentar zoom'] { min-width:var(--button-compact); width:var(--button-compact); padding:6px; }
+.zoom-percent input { min-height:var(--button-compact); width:56px; padding:5px 6px; margin-top:0; font-size:12px; }
+.element-photo-actions button, .quick-photo-filters button, .remove-wall, button.button-danger, .photo-room-link { min-height:var(--button-compact); padding:6px 9px; font-size:11px; }
+.sidebar .nav-heading button, .sidebar-title button { min-width:var(--button-compact); min-height:var(--button-compact); padding:6px 9px; }
+.room-tree .tree-row>button, .floor-button { min-height:var(--button-regular); padding:7px 9px; }
+.module-overview button { padding:12px; min-height:74px; gap:6px; }
+.module-flow .primary { flex:0 1 auto; width:auto; }
+.sketch-fullscreen-button, .sketch-heading button { min-height:var(--button-compact); padding:6px 10px; font-size:12px; }
+@media(max-width:800px), (pointer:coarse) {
+ :root { --button-compact:44px; --button-regular:44px; --button-primary:48px; }
+ button { font-size:13px; padding:9px 12px; }
+ .element-photo-actions button, .quick-photo-filters button { font-size:12px; }
+ .module-flow .primary { width:100%; }
+ .module-overview button { min-height:74px; }
+ .sketch-panel .zoom-tools { gap:5px; flex-wrap:wrap; }
+}
