@@ -51,17 +51,18 @@ def main():
                 raise ValueError('Tipo LAC existente com espessura divergente: ' + name)
             mapping[name] = existing_type
     marker_prefix = 'LAC:{0}:{1}:'.format(data['project']['id'], data['floor']['id'])
-    existing = set()
+    update_mode = bool(globals().get("LAC_UPDATE", False))
+    existing = {}
     for wall in DB.FilteredElementCollector(doc).OfClass(DB.Wall):
         parameter = wall.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
         if parameter:
-            existing.add(parameter.AsString())
+            existing[parameter.AsString()] = wall
     incoming = [(w, marker_prefix + w['roomId'] + ':' + w['id']) for w in data['walls']]
-    incoming = [(w, key) for w, key in incoming if key not in existing]
+    incoming = [(w, key) for w, key in incoming if update_mode or key not in existing]
     if not incoming:
         forms.alert('Estas paredes já foram importadas. A atualização de paredes existentes ainda não é automática.')
         return
-    if not forms.alert('Criar {0} paredes? As aberturas serão recortes retangulares, sem famílias de portas/janelas. Use um projeto limpo para substituir a importação antiga.'.format(len(incoming)), yes=True, no=True):
+    if not forms.alert('Processar {0} paredes (atualizar existentes e adicionar novas)? As aberturas serão recortes retangulares, sem famílias de portas/janelas. Use um projeto limpo para substituir a importação antiga.'.format(len(incoming)), yes=True, no=True):
         return
     elevation = data['floor']['elevationM'] / METERS_PER_FOOT
     name = 'LAC - ' + data['floor']['name'] + ' - ' + data['floor']['id']
@@ -93,18 +94,45 @@ def main():
             a, b = xyz(wall['start']), xyz(wall['end'])
             if a.DistanceTo(b) <= doc.Application.ShortCurveTolerance:
                 raise ValueError('Parede muito curta para o Revit: ' + wall['label'])
-            element = DB.Wall.Create(doc, DB.Line.CreateBound(a, b), mapping[wall['_typeName']].Id, level.Id, wall['heightM'] / METERS_PER_FOOT, 0, False, False)
+            element = existing.get(key) if update_mode else None
+            if element:
+                if element.Pinned:
+                    raise ValueError('Parede travada no Revit: ' + wall['label'])
+                element.ChangeTypeId(mapping[wall['_typeName']].Id)
+                element.get_Parameter(DB.BuiltInParameter.WALL_BASE_CONSTRAINT).Set(level.Id)
+                element.get_Parameter(DB.BuiltInParameter.WALL_BASE_OFFSET).Set(0.0)
+                element.Location.Curve = DB.Line.CreateBound(a, b)
+                element.get_Parameter(DB.BuiltInParameter.WALL_HEIGHT_TYPE).Set(DB.ElementId.InvalidElementId)
+                element.get_Parameter(DB.BuiltInParameter.WALL_USER_HEIGHT_PARAM).Set(wall['heightM'] / METERS_PER_FOOT)
+            else:
+                element = DB.Wall.Create(doc, DB.Line.CreateBound(a, b), mapping[wall['_typeName']].Id, level.Id, wall['heightM'] / METERS_PER_FOOT, 0, False, False)
             element.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(key)
             hosts[wall['id']] = element
+        doc.Regenerate()
+        old_cuts = {}
+        for cut in DB.FilteredElementCollector(doc).OfClass(DB.Opening):
+            param = cut.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+            if param:
+                old_cuts[param.AsString()] = cut
         for opening in data.get('openings', []):
             host = hosts.get(opening['hostWallId'])
             if not host:
                 continue
+            cut_key = marker_prefix + 'opening:' + opening['roomId'] + ':' + opening['id']
+            old_cut = old_cuts.get(cut_key)
+            if old_cut:
+                if not update_mode:
+                    continue
+                doc.Delete(old_cut.Id)
+            # Upgrade legacy cuts only when hosted on the exact LAC wall and same label.
+            legacy = old_cuts.get('LAC abertura: ' + opening['label'])
+            if update_mode and legacy and legacy.Host.Id == host.Id:
+                doc.Delete(legacy.Id)
             cut = doc.Create.NewOpening(host, xyz(opening['start']), xyz(opening['end']))
             param = cut.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
             if param and not param.IsReadOnly:
-                param.Set('LAC abertura: ' + opening['label'])
-    forms.alert('{0} paredes criadas. Confira o resultado em uma vista 3D.'.format(len(incoming)))
+                param.Set(cut_key)
+    forms.alert('{0} paredes processadas. Confira a vista 3D. Elementos ausentes no JSON não foram excluídos.'.format(len(incoming)))
 
 if __name__ == '__main__':
     try:
