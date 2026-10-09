@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """LAC exchange v1. Runs inside pyRevit; never in the web browser."""
+from __future__ import unicode_literals
 import json
 import math
 import os
@@ -88,9 +89,15 @@ def main():
     if not forms.alert('Processar {0} paredes (atualizar existentes e adicionar novas)? As aberturas serão recortes retangulares, sem famílias de portas/janelas. Use um projeto limpo para substituir a importação antiga.'.format(len(incoming)), yes=True, no=True):
         return
     elevation = data['floor']['elevationM'] / METERS_PER_FOOT
-    name = 'LAC - ' + data['floor']['name'] + ' - ' + data['floor']['id']
+    level_name = 'LAC - ' + data['floor']['name'] + ' - ' + data['floor']['id']
     levels = list(DB.FilteredElementCollector(doc).OfClass(DB.Level))
-    level = next((l for l in levels if l.Name == name), None)
+    level = next((l for l in levels if revit.query.get_name(l) == level_name), None)
+    if not level:
+        # Older imports incorrectly used a wall type name for the level.
+        # Reuse only a level actually referenced by this LAC project/floor.
+        candidates = {w.LevelId for key, w in existing.items() if key and key.startswith(marker_prefix)}
+        if len(candidates) == 1:
+            level = doc.GetElement(next(iter(candidates)))
     if level and abs(level.Elevation - elevation) > 0.0001:
         raise ValueError('O nível LAC existente tem outra elevação. Confira no Revit antes de importar.')
     def xyz(point):
@@ -111,7 +118,7 @@ def main():
             mapping[name] = new_type
         if not level:
             level = DB.Level.Create(doc, elevation)
-            level.Name = name
+            level.Name = level_name
         hosts = {}
         for wall, key in incoming:
             a, b = xyz(wall['start']), xyz(wall['end'])
@@ -164,4 +171,4 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        forms.alert('Importação cancelada: ' + str(error))
+        forms.alert('Importação cancelada: ' + u'{0}'.format(error))
