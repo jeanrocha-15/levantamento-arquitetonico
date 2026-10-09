@@ -2,6 +2,8 @@
 """LAC exchange v1. Runs inside pyRevit; never in the web browser."""
 import json
 import math
+import os
+import hashlib
 from pyrevit import DB, forms, revit, script
 
 METERS_PER_FOOT = 0.3048
@@ -25,12 +27,34 @@ def main():
     doc = revit.doc
     if doc.IsFamilyDocument:
         forms.alert('Abra um projeto Revit, não uma família.', exitscript=True)
-    path = forms.pick_file(file_ext='json', title='Selecionar exportação LAC-Revit')
-    if not path:
-        return
-    with open(path, 'rb') as stream:
-        data = json.loads(stream.read().decode('utf-8-sig'))
-    validate(data)
+    update_mode = bool(globals().get('LAC_UPDATE', False))
+    config = script.get_config('LAC_file_sources')
+    document_key = doc.ProjectInformation.UniqueId
+    sources = config.get_option('sources', {})
+    saved = sources.get(document_key, {})
+    path = saved.get('path') if update_mode else None
+    while True:
+        if not path:
+            path = forms.pick_file(file_ext='json', title='Escolher arquivo LAC (caminho será lembrado)')
+            if not path:
+                return
+        try:
+            with open(path, 'rb') as stream:
+                data = json.loads(stream.read().decode('utf-8-sig'))
+            validate(data)
+            # Compare model data, not file timestamps or formatting.
+            model_data = {key: data.get(key) for key in ('schemaVersion', 'units', 'project', 'floor', 'walls', 'openings')}
+            fingerprint = hashlib.sha256(json.dumps(model_data, sort_keys=True, ensure_ascii=True).encode('utf-8')).hexdigest()
+            if update_mode and saved.get('fingerprint') == fingerprint:
+                reason = 'Não há alterações no modelo desde a última importação bem-sucedida.\n' + path
+            else:
+                break
+        except (IOError, OSError, ValueError, KeyError, TypeError) as error:
+            reason = 'Arquivo não encontrado ou inválido:\n{0}\n{1}'.format(path, error)
+        choice = forms.CommandSwitchWindow.show(['Escolher outro arquivo', 'Cancelar'], message=reason)
+        if choice != 'Escolher outro arquivo':
+            return
+        path = None
     wall_types = [t for t in DB.FilteredElementCollector(doc).OfClass(DB.WallType) if t.Kind == DB.WallKind.Basic]
     if not wall_types:
         forms.alert('O projeto precisa ter pelo menos um tipo de parede básica como referência.', exitscript=True)
@@ -51,7 +75,6 @@ def main():
                 raise ValueError('Tipo LAC existente com espessura divergente: ' + name)
             mapping[name] = existing_type
     marker_prefix = 'LAC:{0}:{1}:'.format(data['project']['id'], data['floor']['id'])
-    update_mode = bool(globals().get("LAC_UPDATE", False))
     existing = {}
     for wall in DB.FilteredElementCollector(doc).OfClass(DB.Wall):
         parameter = wall.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
@@ -132,6 +155,9 @@ def main():
             param = cut.get_Parameter(DB.BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
             if param and not param.IsReadOnly:
                 param.Set(cut_key)
+    sources[document_key] = {'path': os.path.abspath(path), 'fingerprint': fingerprint}
+    config.sources = sources
+    script.save_config()
     forms.alert('{0} paredes processadas. Confira a vista 3D. Elementos ausentes no JSON não foram excluídos.'.format(len(incoming)))
 
 if __name__ == '__main__':

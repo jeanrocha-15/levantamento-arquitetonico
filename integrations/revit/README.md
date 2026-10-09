@@ -38,3 +38,7 @@ Pé-direito vazio: padrão presumido 2,50 m. Fechamento Forro (padrão): +0,50 m
 Exporte um novo JSON no site após alterar o levantamento. No Revit clique Atualizar LAC e selecione esse arquivo. Paredes com os mesmos IDs são atualizadas (geometria, tipo e altura); paredes novas são adicionadas. Recortes vinculados são atualizados/adicionados. A operação é uma transação, revertida se falhar. Não altere os comentários LAC que identificam os elementos.
 
 Não apaga paredes/aberturas ausentes do novo JSON. Mudanças na consolidação podem deixar segmentos antigos: confira e remova manualmente os antigos. Elementos travados interrompem o lote. Famílias de portas/janelas não são criadas. Atualização de níveis para outra elevação permanece bloqueada. O arquivo deve ser exportado novamente: o Revit não acessa o navegador automaticamente.
+
+## Caminho lembrado
+
+Importar/Atualizar LAC guarda o caminho do JSON e a assinatura dos dados após uma operação bem-sucedida, nas preferências locais do pyRevit, por ID do projeto Revit. Atualizar procura esse arquivo novamente. Se não existir, estiver inválido ou não houver alteração nos dados do modelo, oferece Escolher outro arquivo ou Cancelar. Cancelamentos e falhas não marcam o arquivo como atualizado. Exporte sobrescrevendo o mesmo JSON para usar esse fluxo. Não há monitoramento automático em segundo plano.
