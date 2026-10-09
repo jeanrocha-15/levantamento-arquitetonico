@@ -36,7 +36,7 @@ def main():
     mapping = {}
     for width in widths:
         candidates = [t for t in wall_types if abs(t.Width * METERS_PER_FOOT - width) < 0.0001]
-        names = {DB.Element.Name.GetValue(t): t for t in candidates}
+        names = {revit.query.get_name(t): t for t in candidates}
         if not names:
             forms.alert('Crie um tipo de parede básica de {0:g} mm e tente novamente. Nenhuma medida será adaptada.'.format(width * 1000), exitscript=True)
         selected = forms.SelectFromList.show(sorted(names), title='Tipo para {0:g} mm'.format(width * 1000), multiselect=False)
