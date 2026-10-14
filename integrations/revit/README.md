@@ -74,3 +74,23 @@ O comando agora tenta GetEndPointReference do LocationCurve (sem presumir valida
 Para conjuntos de tres ou mais paredes retas, o afastamento de comprimento e orientado para longe do centro do conjunto selecionado; em poligonos concavos essa heuristica e a busca de espaco podem exigir mover algumas cotas manualmente.
 
 Teste no Revit com poligono fechado irregular e unioes angulares, incluindo 45/82 graus. Confirme cotas de comprimento e espessura, ausencia de duplicacoes na segunda execucao, alteracao associativa apos editar paredes e preservacao das unioes. Pontos do eixo sem referencias nativas e encontros sem arestas utilizaveis ainda podem ser recusados. O relatorio informa o numero de alternativas e o motivo. As referencias reais, especialmente em paredes com perfil editado ou geometria recortada, so podem ser confirmadas dentro do Revit.
+
+## Cotar paredes do vinculo (PPCI)
+
+Novo botao separado: LAC > Levantamento > Cotar paredes do vinculo. O botao Cotar paredes continua disponivel para paredes do proprio projeto.
+
+1. Abra uma planta do PPCI com o arquitetonico vinculado e visivel.
+2. Selecione a instancia do vinculo previamente ou clique no botao e selecione o vinculo.
+3. Marque um ou varios tipos de parede. A lista identifica o tipo e quantas paredes sao visiveis nesta vista.
+4. Escolha Comprimento, Espessura ou Comprimento + Espessura (padrao).
+5. Use o tipo atual de cota do PPCI ou selecione outro tipo linear existente no PPCI.
+
+A geometria e lida no documento vinculado com referencias calculadas, sem passar uma vista do PPCI para Options.View do outro documento. Reutiliza as alternativas de eixo, faces e arestas do comando existente. GetTotalTransform converte pontos e vetores para o hospedeiro, incluindo espelhamento. CreateLinkReference converte as referencias para a instancia exata. Somente o PPCI recebe transacoes; nao altera o arquitetonico nem copia paredes.
+
+Usa FilteredElementCollector(hostDocument, viewId, linkId), disponivel no Revit 2026.1, para respeitar a visibilidade da instancia. Aplica verificacao adicional aproximada de recorte. Vistas vinculadas, filtros, fases, regioes nao retangulares, paredes inclinadas e referencias de encontros ainda exigem validacao real. O Revit pode incluir elementos parcialmente ocultos no coletor; a verificacao de NewDimension e referencias disponiveis nao substitui uma conferência visual.
+
+Duplicacoes sao verificadas pelas referencias convertidas no documento hospedeiro, incluindo a instancia. Falhas ficam identificadas por ID do vinculo e da parede. Nove testes simulados cobrem os dois comandos, incluindo rotacao, translacao, espelhamento, IDs de duas instancias e falha de conversao. Execute `python -m unittest discover -s integrations/revit/tests -p "test_*dimensions.py"`.
+
+Teste no Revit: arquitetonico deslocado/rotacionado, copia espelhada e duas instancias do mesmo arquivo; confirme cotas paralelas/perpendiculares, tipos filtrados, segunda execucao sem duplicacoes e atualizacao apos editar/recarregar o arquitetonico. Vínculo descarregado deve informar o problema. O vinculo deve permanecer intacto. Mudancas de topologia podem invalidar cotas associativas e precisam de revisao no PPCI.
+
+Referencias API: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/968b52a0-de55-2f96-de40-968812bc41c7.htm

@@ -10,7 +10,9 @@ def faces_of(wall, view):
     options = DB.Options()
     options.ComputeReferences = True
     options.IncludeNonVisibleObjects = False
-    options.View = view
+    native_view=getattr(view,'native_view',view)
+    if native_view is not None:options.View=native_view
+    else:options.DetailLevel=DB.ViewDetailLevel.Fine
     faces = []
     for geometry in wall.get_Geometry(options):
         # Wall solids supply original model references; no copied geometry.
@@ -24,7 +26,9 @@ def edges_of(wall, view):
     options=DB.Options()
     options.ComputeReferences=True
     options.IncludeNonVisibleObjects=False
-    options.View=view
+    native_view=getattr(view,'native_view',view)
+    if native_view is not None:options.View=native_view
+    else:options.DetailLevel=DB.ViewDetailLevel.Fine
     edges=[]
     for geometry in wall.get_Geometry(options):
         if isinstance(geometry,DB.Solid):
@@ -33,7 +37,7 @@ def edges_of(wall, view):
 
 def endpoint_candidates(wall,view,curve,start,end,direction,faces):
     alternatives=[]
-    doc=revit.doc
+    doc=getattr(wall,'Document',revit.doc)
     def valid(ref):
         if ref is None: return False
         try:
@@ -151,13 +155,13 @@ def dimension_specs(wall, view, mode, offset):
             specs.append(('comprimento',refs,p,q,normal,wall.Width/2+offset))
     if mode != 'Comprimento':
         try:
-            valid = {f.Reference.ConvertToStableRepresentation(revit.doc) for f in faces}
+            valid = {f.Reference.ConvertToStableRepresentation(getattr(wall,'Document',revit.doc)) for f in faces}
             sides = []
             for side in (DB.ShellLayerType.Interior, DB.ShellLayerType.Exterior):
                 candidates = []
                 for ref in DB.HostObjectUtils.GetSideFaces(wall, side):
                     face = wall.GetGeometryObjectFromReference(ref)
-                    if isinstance(face, DB.PlanarFace) and abs(face.FaceNormal.DotProduct(normal)) >= ALIGNMENT and ref.ConvertToStableRepresentation(revit.doc) in valid:
+                    if isinstance(face, DB.PlanarFace) and abs(face.FaceNormal.DotProduct(normal)) >= ALIGNMENT and ref.ConvertToStableRepresentation(getattr(wall,'Document',revit.doc)) in valid:
                         candidates.append((face,ref))
                 if not candidates:
                     raise ValueError('Face de acabamento sem referencia valida na vista.')
