@@ -16,7 +16,7 @@ class Vec:
     def Normalize(self):return self.Multiply(1/math.sqrt(self.DotProduct(self)))
     def Negate(self):return self.Multiply(-1)
 class Ref:
-    def __init__(self,key):self.key=key
+    def __init__(self,key):self.key=key;self.ElementId=7
     def ConvertToStableRepresentation(self,doc):return self.key
 class Line:
     def __init__(self,a,b):self.points=[a,b]
@@ -38,7 +38,7 @@ class Tests(unittest.TestCase):
         d=Vec(math.cos(angle),math.sin(angle));n=Vec(-d.y,d.x);start=Vec(7,11);end=start.Add(d.Multiply(4))
         a,b=Face(start,d.Negate(),'start'),Face(end,d,'end')
         inner,outer=Face(start.Subtract(n.Multiply(.1)),n.Negate(),'inner'),Face(start.Add(n.Multiply(.1)),n,'outer')
-        wall=types.SimpleNamespace(Location=Location(Line(start,end)),Orientation=n,Width=.2,faces=[a,b,inner,outer],side={'i':inner,'e':outer})
+        wall=types.SimpleNamespace(Id=7,Location=Location(Line(start,end)),Orientation=n,Width=.2,faces=[a,b,inner,outer],side={'i':inner,'e':outer})
         wall.GetGeometryObjectFromReference=lambda r:next(f for f in wall.faces if f.Reference.key==r.key)
         view=types.SimpleNamespace(ViewDirection=Vec(0,0,1),Origin=Vec(0,0,0))
         return wall,view,d,n
@@ -57,6 +57,37 @@ class Tests(unittest.TestCase):
         w.faces=w.faces[2:];specs,errors=scope['dimension_specs'](w,v,'Comprimento + Espessura',.4);self.assertEqual(len(specs),1);self.assertTrue(errors)
         w.Location.Curve=object()
         with self.assertRaises(ValueError):scope['dimension_specs'](w,v,'Comprimento',.4)
+    def test_joined_wall_uses_axis_then_alternatives(self):
+        scope=load();w,v,d,n=self.fixture(math.radians(45))
+        w.Location.Curve.GetEndPointReference=lambda index:Ref('axis'+str(index))
+        specs,errors=scope['dimension_specs'](w,v,'Comprimento',.4)
+        self.assertFalse(errors)
+        self.assertEqual([r.key for r in specs[0][1]],['axis0','axis1'])
+        self.assertGreater(len(specs),1)
+        w.Location.Curve.GetEndPointReference=lambda index:None
+        specs,errors=scope['dimension_specs'](w,v,'Comprimento',.4)
+        self.assertFalse(errors)
+        self.assertEqual([r.key for r in specs[0][1]],['start','end'])
+    def test_joined_wall_vertical_edges_without_end_faces(self):
+        scope=load();w,v,d,n=self.fixture(math.radians(82))
+        w.faces=w.faces[2:]
+        class Edge:
+            def __init__(self,point,key):self.point=point;self.Reference=Ref(key)
+            def AsCurve(self):return Line(self.point,self.point.Add(Vec(0,0,3)))
+        scope['edges_of']=lambda wall,view:[Edge(w.Location.Curve.GetEndPoint(0),'edge0'),Edge(w.Location.Curve.GetEndPoint(1),'edge1')]
+        specs,errors=scope['dimension_specs'](w,v,'Comprimento',.4)
+        self.assertFalse(errors)
+        self.assertEqual([r.key for r in specs[0][1]],['edge0','edge1'])
+        self.assertAlmostEqual(specs[0][3].Subtract(specs[0][2]).DotProduct(d),4)
+    def test_invalid_axis_refs_and_interior_jambs_are_not_endpoints(self):
+        scope=load();w,v,d,n=self.fixture(0)
+        def invalid(index):
+            ref=Ref('invalid'+str(index));ref.ElementId=99;return ref
+        w.Location.Curve.GetEndPointReference=invalid
+        origin=w.Location.Curve.GetEndPoint(0)
+        w.faces=[Face(origin.Add(d.Multiply(1.5)),d,'jamb0'),Face(origin.Add(d.Multiply(2.5)),d.Negate(),'jamb1')]
+        specs,errors=scope['dimension_specs'](w,v,'Comprimento',.4)
+        self.assertFalse(specs);self.assertTrue(errors)
     def test_collision_and_duplicate_keys(self):
         scope=load();box=scope['polygon_of_box']((0,0,1,1))
         self.assertTrue(scope['overlaps'](box,scope['polygon_of_box']((.5,.5,2,2))))

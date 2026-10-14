@@ -66,3 +66,11 @@ Ignora curvas, eixos fora do plano e paredes sem referencias validas na vista. E
 Testes locais: `python integrations/revit/tests/test_dimensions.py` valida direcoes, modos, falta de referencias, colisao e chave de duplicacao com objetos simulados. Nao substitui testes dentro do Revit. Nao ha .sln/.csproj; a extensao Python e compilada/analisada sintaticamente. `npm run build` valida o site existente.
 
 API: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/475aab91-19d3-5884-d3eb-18dfc0d4004f.htm
+
+### Paredes unidas e encontros angulares
+
+O comando agora tenta GetEndPointReference do LocationCurve (sem presumir validade), depois faces de extremidade e referencias de arestas originais extraidas na vista com ComputeReferences. Pode combinar referencias diferentes nas extremidades. Cada par e validado criando a cota em uma transacao: verifica referencias disponiveis e valor geometricamente coerente. Tentativas recusadas sao revertidas; a proxima alternativa e testada antes do aviso final. Nao usa ValueOverride, linhas auxiliares, unjoin ou edicao de paredes.
+
+Para conjuntos de tres ou mais paredes retas, o afastamento de comprimento e orientado para longe do centro do conjunto selecionado; em poligonos concavos essa heuristica e a busca de espaco podem exigir mover algumas cotas manualmente.
+
+Teste no Revit com poligono fechado irregular e unioes angulares, incluindo 45/82 graus. Confirme cotas de comprimento e espessura, ausencia de duplicacoes na segunda execucao, alteracao associativa apos editar paredes e preservacao das unioes. Pontos do eixo sem referencias nativas e encontros sem arestas utilizaveis ainda podem ser recusados. O relatorio informa o numero de alternativas e o motivo. As referencias reais, especialmente em paredes com perfil editado ou geometria recortada, so podem ser confirmadas dentro do Revit.

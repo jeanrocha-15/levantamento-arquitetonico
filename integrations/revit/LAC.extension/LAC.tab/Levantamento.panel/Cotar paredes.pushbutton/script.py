@@ -20,6 +20,76 @@ def faces_of(wall, view):
                     faces.append(face)
     return faces
 
+def edges_of(wall, view):
+    options=DB.Options()
+    options.ComputeReferences=True
+    options.IncludeNonVisibleObjects=False
+    options.View=view
+    edges=[]
+    for geometry in wall.get_Geometry(options):
+        if isinstance(geometry,DB.Solid):
+            edges.extend(list(geometry.Edges))
+    return edges
+
+def endpoint_candidates(wall,view,curve,start,end,direction,faces):
+    alternatives=[]
+    doc=revit.doc
+    def valid(ref):
+        if ref is None: return False
+        try:
+            if ref.ElementId != wall.Id: return False
+            return bool(ref.ConvertToStableRepresentation(doc))
+        except Exception: return False
+    try:
+        refs=[curve.GetEndPointReference(0),curve.GetEndPointReference(1)]
+        if all(valid(r) for r in refs) and reference_key(doc,refs)[0]!=reference_key(doc,refs)[1]:
+            alternatives.append((refs,project_to_view(start,view),project_to_view(end,view)))
+    except Exception:
+        pass
+    ends=[[],[]]
+    near=max(wall.Width*2,0.01)
+    span=end.Subtract(start).DotProduct(direction)
+    def add(ref,point):
+        if not valid(ref): return
+        t=point.Subtract(start).DotProduct(direction)
+        for index,target in enumerate((0,span)):
+            if abs(t-target)<=near and abs(t-target)<span/2:
+                projected=project_to_view(start,view).Add(direction.Multiply(t))
+                ends[index].append((abs(t-target),ref,projected))
+    for face in faces:
+        if abs(face.FaceNormal.DotProduct(direction))>=ALIGNMENT:
+            add(face.Reference,face.Origin)
+    try:
+        edges=edges_of(wall,view)
+    except Exception:
+        edges=[]
+    for edge in edges:
+        try:
+            c=edge.AsCurve()
+            if not isinstance(c,DB.Line): continue
+            a,b=c.GetEndPoint(0),c.GetEndPoint(1)
+            axis=b.Subtract(a).Normalize()
+            # Original vertical edge: a stable point reference in a plan view.
+            if abs(axis.DotProduct(view.ViewDirection))>=ALIGNMENT:
+                add(edge.Reference,a)
+            # Original edge endpoints, not points fabricated from LocationCurve.
+            for index,point in enumerate((a,b)):
+                try: add(c.GetEndPointReference(index),point)
+                except Exception: pass
+        except Exception: pass
+    for candidates in ends:
+        candidates.sort(key=lambda x:x[0])
+    seen=set(reference_key(doc,a[0]) for a in alternatives)
+    for first in ends[0][:6]:
+        for last in ends[1][:6]:
+            refs=[first[1],last[1]]
+            key=reference_key(doc,refs)
+            if key in seen or key[0]==key[1]:continue
+            if last[2].Subtract(first[2]).DotProduct(direction)<=0.0001:continue
+            seen.add(key)
+            alternatives.append((refs,first[2],last[2]))
+    return alternatives[:20]
+
 def reference_key(doc, refs):
     return tuple(sorted(r.ConvertToStableRepresentation(doc) for r in refs))
 
@@ -74,22 +144,11 @@ def dimension_specs(wall, view, mode, offset):
     faces = faces_of(wall, view)
     specs, errors = [], []
     if mode != 'Espessura':
-        caps = [f for f in faces if abs(f.FaceNormal.DotProduct(direction)) >= ALIGNMENT]
-        if len(caps) < 2:
-            errors.append('Comprimento: extremidades sem faces planas referenciaveis (possivel encontro/recorte).')
-        else:
-            caps.sort(key=lambda f:f.Origin.DotProduct(direction))
-            first, last = caps[0], caps[-1]
-            a, b = first.Origin.DotProduct(direction), last.Origin.DotProduct(direction)
-            # Do not dimension jamb faces as if they were wall ends.
-            tolerance = max(wall.Width, 0.01)
-            if abs(a-start.DotProduct(direction)) > tolerance or abs(b-end.DotProduct(direction)) > tolerance or b-a <= 0.0001:
-                errors.append('Comprimento: referencias nao representam as extremidades da parede.')
-            else:
-                base = project_to_view(start, view)
-                p = base.Add(direction.Multiply(a-start.DotProduct(direction)))
-                q = base.Add(direction.Multiply(b-start.DotProduct(direction)))
-                specs.append(('comprimento', [first.Reference,last.Reference], p, q, normal, wall.Width/2+offset))
+        alternatives=endpoint_candidates(wall,view,curve,start,end,direction,faces)
+        if not alternatives:
+            errors.append('Comprimento: eixo sem referencias nativas e nenhuma face/aresta referenciavel proxima das extremidades na vista.')
+        for refs,p,q in alternatives:
+            specs.append(('comprimento',refs,p,q,normal,wall.Width/2+offset))
     if mode != 'Comprimento':
         try:
             valid = {f.Reference.ConvertToStableRepresentation(revit.doc) for f in faces}
@@ -141,6 +200,17 @@ def main():
     # 8 mm on paper: uniform offset across the batch, independent of wall rotation.
     offset = 0.008 * view.Scale / 0.3048
     padding = 0.003 * view.Scale / 0.3048
+    # Outward from the selected assembly when several walls surround a room.
+    center=None
+    midpoints=[]
+    for wall in walls:
+        if isinstance(wall.Location,DB.LocationCurve) and isinstance(wall.Location.Curve,DB.Line):
+            c=wall.Location.Curve
+            midpoints.append(c.GetEndPoint(0).Add(c.GetEndPoint(1)).Multiply(0.5))
+    if len(midpoints)>2:
+        center=midpoints[0]
+        for point in midpoints[1:]:center=center.Add(point)
+        center=center.Multiply(1.0/len(midpoints))
     occupied, existing, messages = [], set(), []
     for element in DB.FilteredElementCollector(doc,view.Id).WhereElementIsNotElementType():
         if isinstance(element,(DB.Wall,DB.Dimension,DB.TextNote,DB.IndependentTag)):
@@ -165,40 +235,53 @@ def main():
                     raise ValueError('Parede nao visivel na vista ativa.')
                 specs, errors = dimension_specs(wall,view,mode,offset)
                 messages.extend(label+' - '+e for e in errors)
-                for kind,refs,p,q,away,base_offset in specs:
-                    key = reference_key(doc,refs)
-                    if key in existing:
-                        messages.append(label+' - '+kind+': cota ja existente.'); continue
-                    line, area = None,None
-                    for band in range(16):
-                        shift = away.Multiply(base_offset+band*offset)
-                        a,b = p.Add(shift),q.Add(shift)
-                        candidate = polygon_of_box(rectangle([a,b],view,padding))
-                        inside_crop = not crop or all(crop[0]<=x<=crop[2] and crop[1]<=y<=crop[3] for x,y in candidate)
-                        if inside_crop and not any(overlaps(candidate,box) for box in occupied):
-                            line,area = DB.Line.CreateBound(a,b),candidate;break
-                    if not line:
-                        messages.append(label+' - '+kind+': sem espaco livre para cota.');continue
-                    transaction = DB.Transaction(doc,'LAC - Cota '+kind)
-                    transaction.Start()
-                    try:
-                        references = DB.ReferenceArray()
-                        for ref in refs: references.Append(ref)
-                        if dimension_type:
-                            dim = doc.Create.NewDimension(view,line,references,dimension_type)
-                        else:
-                            dim = doc.Create.NewDimension(view,line,references)
-                        doc.Regenerate()
-                        if dim is None or dim.Value is None or not dim.AreReferencesAvailable:
-                            raise ValueError('Referencias rejeitadas pela vista.')
-                        if transaction.Commit() != DB.TransactionStatus.Committed:
-                            raise ValueError('Revit nao confirmou a cota.')
-                        existing.add(key);occupied.append(area);created+=1
-                    except Exception as error:
-                        if transaction.GetStatus()==DB.TransactionStatus.Started: transaction.RollBack()
-                        messages.append(label+' - '+kind+': '+str(error))
-                    finally:
-                        transaction.Dispose()
+                if center:
+                    specs=[(kind,refs,p,q,away.Negate() if kind=='comprimento' and away.DotProduct(p.Add(q).Multiply(0.5).Subtract(center))<0 else away,base_offset) for kind,refs,p,q,away,base_offset in specs]
+                kinds=[]
+                for spec in specs:
+                    if spec[0] not in kinds:kinds.append(spec[0])
+                for kind in kinds:
+                    attempts=[spec for spec in specs if spec[0]==kind]
+                    failures=[]
+                    accepted=False
+                    # An existing cota using any of the alternative references wins.
+                    if any(reference_key(doc,spec[1]) in existing for spec in attempts):
+                        messages.append(label+' - '+kind+': cota ja existente.');continue
+                    for _,refs,p,q,away,base_offset in attempts:
+                        key=reference_key(doc,refs)
+                        line,area=None,None
+                        for band in range(16):
+                            shift=away.Multiply(base_offset+band*offset)
+                            a,b=p.Add(shift),q.Add(shift)
+                            candidate=polygon_of_box(rectangle([a,b],view,padding))
+                            inside_crop=not crop or all(crop[0]<=x<=crop[2] and crop[1]<=y<=crop[3] for x,y in candidate)
+                            if inside_crop and not any(overlaps(candidate,box) for box in occupied):
+                                line,area=DB.Line.CreateBound(a,b),candidate;break
+                        if not line:
+                            failures.append('sem espaco livre/fora do recorte');continue
+                        transaction=DB.Transaction(doc,'LAC - Cota '+kind)
+                        transaction.Start()
+                        try:
+                            references=DB.ReferenceArray()
+                            for ref in refs:references.Append(ref)
+                            if dimension_type:dim=doc.Create.NewDimension(view,line,references,dimension_type)
+                            else:dim=doc.Create.NewDimension(view,line,references)
+                            doc.Regenerate()
+                            expected=q.Subtract(p).GetLength()
+                            if dim is None or dim.Value is None or not dim.AreReferencesAvailable:
+                                raise ValueError('Referencias rejeitadas pela vista.')
+                            if abs(dim.Value-expected)>0.001:
+                                raise ValueError('Referencia mede outra geometria, nao as extremidades propostas.')
+                            if transaction.Commit()!=DB.TransactionStatus.Committed:
+                                raise ValueError('Revit nao confirmou a cota.')
+                            existing.add(key);occupied.append(area);created+=1;accepted=True;break
+                        except Exception as error:
+                            if transaction.GetStatus()==DB.TransactionStatus.Started:transaction.RollBack()
+                            failures.append(str(error))
+                        finally:
+                            transaction.Dispose()
+                    if not accepted:
+                        messages.append(label+' - '+kind+': {0} alternativas tentadas; nenhuma cota associativa valida. {1}'.format(len(attempts),'; '.join(sorted(set(failures)))))
             except Exception as error:
                 messages.append(label+' - '+str(error))
         group.Assimilate()
