@@ -3,13 +3,15 @@ from __future__ import unicode_literals
 import os
 import runpy
 from pyrevit import DB, forms, revit, script
-from Autodesk.Revit.UI.Selection import ObjectType
+from Autodesk.Revit.UI.Selection import ObjectType, PickBoxStyle
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
 # Load helpers without executing the original command.
 helpers=runpy.run_path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Cotar paredes.pushbutton','script.py'),run_name='lac_dimensions_helpers')
 for helper in ('reference_key','rectangle','polygon_of_box','overlaps','wall_footprint','box_rectangle'):
     globals()[helper]=helpers[helper]
+
+workflow=runpy.run_path(os.path.join(os.path.dirname(__file__),'workflow.py'),run_name='lac_link_workflow')
 
 class LinkedView:
     native_view=None
@@ -75,6 +77,10 @@ def main():
         forms.alert('O vinculo esta descarregado. Carregue-o antes de cotar.');return
     if link.IsHidden(view):
         forms.alert('O vinculo esta oculto nesta vista.');return
+    config=script.get_config('LAC_link_dimension_preferences')
+    contexts=config.get_option('contexts',{})
+    context=workflow['context_key'](doc,view,link)
+    saved=contexts.get(context,{})
     try:
         visible_walls=list(DB.FilteredElementCollector(doc,view.Id,link.Id).OfClass(DB.Wall).WhereElementIsNotElementType())
     except Exception as error:
@@ -92,21 +98,41 @@ def main():
         type_choices[label]=type_id.Value
     if not type_choices:
         forms.alert('O vinculo nao possui paredes.');return
-    chosen_types=forms.SelectFromList.show(sorted(type_choices),title='Tipos de parede do vinculo',button_name='Cotar tipos selecionados',multiselect=True)
+    choices=[forms.TemplateListItem(label,checked=type_choices[label] in saved.get('type_ids',[])) for label in sorted(type_choices)]
+    chosen_types=forms.SelectFromList.show(choices,title='Tipos de parede do vinculo',button_name='Cotar tipos selecionados',multiselect=True)
     if not chosen_types:return
-    type_ids={type_choices[label] for label in chosen_types}
+    type_ids={type_choices[getattr(label,'item',label)] for label in chosen_types}
     walls=[wall for wall in visible_walls if wall.GetTypeId().Value in type_ids]
     if not walls:
         forms.alert('Nenhuma parede dos tipos escolhidos esta visivel nesta vista.');return
-    mode=forms.ask_for_one_item(['Comprimento + Espessura','Comprimento','Espessura'],default='Comprimento + Espessura',prompt='Cotas a criar no PPCI',title='Cotar paredes do vinculo')
+    scope_choice=forms.ask_for_one_item(['Toda a vista','Selecionar regiao'],default=saved.get('scope','Toda a vista'),prompt='Limite de cotagem',title='Cotar paredes do vinculo')
+    if not scope_choice:return
+    if scope_choice=='Selecionar regiao':
+        try:region=revit.uidoc.Selection.PickBox(PickBoxStyle.Crossing)
+        except OperationCanceledException:return
+        region_polygon=polygon_of_box(rectangle([region.Min,region.Max],view,0))
+        walls=[wall for wall in walls if linked_footprint(wall,link,view,helpers) and overlaps(linked_footprint(wall,link,view,helpers),region_polygon)]
+        if not walls:
+            forms.alert('Nenhuma parede escolhida cruza a regiao.');return
+    mode=forms.ask_for_one_item(['Comprimento + Espessura','Comprimento','Espessura'],default=saved.get('mode','Comprimento + Espessura'),prompt='Cotas a criar no PPCI',title='Cotar paredes do vinculo')
     if not mode:return
     types={revit.query.get_name(t):t for t in DB.FilteredElementCollector(doc).OfClass(DB.DimensionType) if t.StyleType==DB.DimensionStyleType.Linear}
     default_name='Padrao atual do Revit'
-    chosen=forms.ask_for_one_item([default_name]+sorted(types),default=default_name,prompt='Tipo de cota do PPCI',title='Cotar paredes do vinculo')
+    chosen=forms.ask_for_one_item([default_name]+sorted(types),default=saved.get('style',default_name) if saved.get('style',default_name) in [default_name]+list(types) else default_name,prompt='Tipo de cota do PPCI',title='Cotar paredes do vinculo')
     if not chosen:return
     dimension_type=types.get(chosen)
-    # 8 mm on paper: uniform offset across the batch, independent of wall rotation.
-    offset = 0.008 * view.Scale / 0.3048
+    offset_text=forms.ask_for_string(default=str(saved.get('offset_mm',8)),prompt='Afastamento inicial em mm na folha (1 a 100)',title='Posicionamento das cotas')
+    if offset_text is None:return
+    try:offset_mm=workflow['parse_offset'](offset_text)
+    except ValueError as error:forms.alert(str(error));return
+    side=forms.ask_for_one_item(['Automatico','Exterior','Interior'],default=saved.get('side','Automatico'),prompt='Lado das cotas de comprimento',title='Posicionamento das cotas')
+    if not side:return
+    endpoint=forms.ask_for_one_item(['Inicio','Final'],default=saved.get('endpoint','Inicio'),prompt='Extremidade das cotas de espessura',title='Posicionamento das cotas')
+    if not endpoint:return
+    action=forms.ask_for_one_item(['Manter validas e reparar quebradas','Atualizar posicao e estilo das minhas cotas'],default='Manter validas e reparar quebradas',prompt='Tratamento de cotas LAC existentes',title='Atualizar cotas')
+    if not action:return
+    recreate=action=='Atualizar posicao e estilo das minhas cotas'
+    offset = offset_mm/1000.0 * view.Scale / 0.3048
     padding = 0.003 * view.Scale / 0.3048
     # Outward from the selected assembly when several walls surround a room.
     center=None
@@ -119,15 +145,33 @@ def main():
         center=midpoints[0]
         for point in midpoints[1:]:center=center.Add(point)
         center=center.Multiply(1.0/len(midpoints))
+    managed,records=workflow['managed_dimensions'](doc,saved.get('dimensions',[]),link,walls)
+    active_kinds={'comprimento','espessura'} if mode=='Comprimento + Espessura' else {'comprimento' if mode=='Comprimento' else 'espessura'}
+    replacement_ids={dim.Id.Value for key,items in managed.items() if key[1] in active_kinds for dim,valid in items if recreate or not valid}
+    rows=[]
+    prepared={}
+    for wall in walls:
+        try:
+            specs,errors=linked_specs(wall,view,mode,offset,link,helpers)
+            specs=workflow['adjust_specs'](specs,wall,link,center,side,endpoint,offset)
+        except Exception as error:specs,errors=[],[str(error)]
+        prepared[wall.UniqueId]=(specs,errors)
+        rows.append({'wall':wall,'specs':specs,'errors':errors,'footprint':linked_footprint(wall,link,view,helpers)})
+    output=script.get_output()
+    output.print_html(workflow['preview_html'](rows,view,helpers))
+    candidate_count=sum(len(set(spec[0] for spec in row['specs'])) for row in rows)
+    invalid_count=sum(len(row['errors']) for row in rows)
+    if not forms.alert('Previa: {0} paredes, ate {1} cotas, {2} avisos. {3} cota(s) LAC candidatas a substituicao. Veja o desenho e a tabela no painel de resultados. Nenhuma parede sera alterada. Confirmar?'.format(len(walls),candidate_count,invalid_count,len(replacement_ids)),yes=True,no=True):return
     occupied, existing, messages = [], set(), []
     for element in DB.FilteredElementCollector(doc,view.Id).WhereElementIsNotElementType():
+        if isinstance(element,DB.Dimension) and element.Id.Value in replacement_ids:continue
         if isinstance(element,(DB.Wall,DB.Dimension,DB.TextNote,DB.IndependentTag)):
             box = element.get_BoundingBox(view)
             if box:
                 occupied.append(wall_footprint(element,view) or polygon_of_box(box_rectangle(box,view)) if isinstance(element,DB.Wall) else polygon_of_box(box_rectangle(box,view)))
         if isinstance(element,DB.Dimension):
             try:
-                existing.add(reference_key(doc,list(element.References)))
+                if element.AreReferencesAvailable:existing.add(reference_key(doc,list(element.References)))
             except Exception:
                 pass
     for linked_wall in visible_walls:
@@ -136,6 +180,8 @@ def main():
     visible_ids = {wall.Id.Value for wall in walls}
     crop = box_rectangle(view.CropBox,view) if view.CropBoxActive else None
     created = 0
+    updated = 0
+    result_dimensions=[]
     group = DB.TransactionGroup(doc,'LAC - Cotar paredes')
     group.Start()
     try:
@@ -144,10 +190,8 @@ def main():
             try:
                 if wall.Id.Value not in visible_ids:
                     raise ValueError('Parede nao visivel na vista ativa.')
-                specs, errors = linked_specs(wall,view,mode,offset,link,helpers)
+                specs,errors=prepared[wall.UniqueId]
                 messages.extend(label+' - '+e for e in errors)
-                if center:
-                    specs=[(kind,refs,p,q,away.Negate() if kind=='comprimento' and away.DotProduct(p.Add(q).Multiply(0.5).Subtract(center))<0 else away,base_offset) for kind,refs,p,q,away,base_offset in specs]
                 kinds=[]
                 for spec in specs:
                     if spec[0] not in kinds:kinds.append(spec[0])
@@ -155,6 +199,11 @@ def main():
                     attempts=[spec for spec in specs if spec[0]==kind]
                     failures=[]
                     accepted=False
+                    own=managed.get((wall.UniqueId,kind),[])
+                    if own and not recreate and any(valid for dim,valid in own):
+                        messages.append(label+' - '+kind+': cota LAC valida preservada.')
+                        if any(not valid for dim,valid in own):messages.append(label+' - '+kind+': ha outra cota LAC quebrada; escolha atualizar posicao/estilo para consolidar.')
+                        continue
                     # An existing cota using any of the alternative references wins.
                     if any(reference_key(doc,spec[1]) in existing for spec in attempts):
                         messages.append(label+' - '+kind+': cota ja existente.');continue
@@ -183,8 +232,15 @@ def main():
                                 raise ValueError('Referencias rejeitadas pela vista.')
                             if abs(dim.Value-expected)>0.001:
                                 raise ValueError('Referencia mede outra geometria, nao as extremidades propostas.')
+                            old=[dim for dim,valid in own if recreate or not valid]
+                            for previous in old:doc.Delete(previous.Id)
                             if transaction.Commit()!=DB.TransactionStatus.Committed:
                                 raise ValueError('Revit nao confirmou a cota.')
+                            if old:
+                                records=[record for record in records if not (record.get('wall')==wall.UniqueId and record.get('kind')==kind and record.get('link')==link.UniqueId)]
+                                updated+=1
+                            records.append({'dimension':dim.UniqueId,'wall':wall.UniqueId,'link':link.UniqueId,'kind':kind})
+                            result_dimensions.append(dim.Id)
                             existing.add(key);occupied.append(area);created+=1;accepted=True;break
                         except Exception as error:
                             if transaction.GetStatus()==DB.TransactionStatus.Started:transaction.RollBack()
@@ -201,9 +257,27 @@ def main():
         raise
     finally:
         group.Dispose()
+    contexts[context]={'type_ids':sorted(type_ids),'scope':scope_choice,'mode':mode,'style':chosen,'offset_mm':offset_mm,'side':side,'endpoint':endpoint,'dimensions':records}
+    try:
+        config.contexts=contexts
+        script.save_config()
+    except Exception as error:
+        messages.append('Cotas criadas, mas preferencias locais nao puderam ser salvas: '+str(error))
     output = script.get_output()
     output.print_md('## Cotagem LAC: {0} cota(s) criada(s)'.format(created))
+    if result_dimensions:output.print_html(output.linkify(result_dimensions,title='Selecionar cotas criadas/atualizadas no PPCI'))
+    output.print_html(output.linkify(link.Id,title='Selecionar instancia do vinculo'))
     for message in messages: output.print_md('- '+message)
+    review={}
+    for row in rows:
+        prefix='Vinculo {0} / Parede {1} - '.format(link.Id.Value,row['wall'].Id.Value)
+        details=[message[len(prefix):] for message in messages if message.startswith(prefix)]
+        review['Parede {0} - {1}'.format(row['wall'].Id.Value,('; '.join(details) or 'Conferir cotas')[:180])]=row['wall']
+    while forms.CommandSwitchWindow.show(['Localizar parede do relatorio','Fechar'],message='Resultado: {0} cotas processadas; {1} substituidas. Escolha uma parede para aproximar a vista.'.format(created,updated))=='Localizar parede do relatorio':
+        item=forms.SelectFromList.show(sorted(review),title='Relatorio - clique na parede para localizar',multiselect=False)
+        if not item:break
+        workflow['locate_wall'](revit.uidoc,view,review[item],link)
+
     forms.alert('{0} cota(s) criada(s). {1} aviso(s). Consulte o painel de resultados.'.format(created,len(messages)))
 
 if __name__=='__main__':

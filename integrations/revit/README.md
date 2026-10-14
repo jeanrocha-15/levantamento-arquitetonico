@@ -89,8 +89,23 @@ A geometria e lida no documento vinculado com referencias calculadas, sem passar
 
 Usa FilteredElementCollector(hostDocument, viewId, linkId), disponivel no Revit 2026.1, para respeitar a visibilidade da instancia. Aplica verificacao adicional aproximada de recorte. Vistas vinculadas, filtros, fases, regioes nao retangulares, paredes inclinadas e referencias de encontros ainda exigem validacao real. O Revit pode incluir elementos parcialmente ocultos no coletor; a verificacao de NewDimension e referencias disponiveis nao substitui uma conferência visual.
 
-Duplicacoes sao verificadas pelas referencias convertidas no documento hospedeiro, incluindo a instancia. Falhas ficam identificadas por ID do vinculo e da parede. Nove testes simulados cobrem os dois comandos, incluindo rotacao, translacao, espelhamento, IDs de duas instancias e falha de conversao. Execute `python -m unittest discover -s integrations/revit/tests -p "test_*dimensions.py"`.
+Duplicacoes sao verificadas pelas referencias convertidas no documento hospedeiro, incluindo a instancia. Falhas ficam identificadas por ID do vinculo e da parede. Quatorze testes simulados cobrem os dois comandos e o fluxo de revisao, incluindo rotacao, translacao, espelhamento, IDs de duas instancias e falha de conversao. Execute `python -m unittest discover -s integrations/revit/tests -p "test_*dimensions.py"`.
 
 Teste no Revit: arquitetonico deslocado/rotacionado, copia espelhada e duas instancias do mesmo arquivo; confirme cotas paralelas/perpendiculares, tipos filtrados, segunda execucao sem duplicacoes e atualizacao apos editar/recarregar o arquitetonico. Vínculo descarregado deve informar o problema. O vinculo deve permanecer intacto. Mudancas de topologia podem invalidar cotas associativas e precisam de revisao no PPCI.
 
 Referencias API: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/968b52a0-de55-2f96-de40-968812bc41c7.htm
+
+### Fluxo de revisao e atualizacao do vinculo
+
+O botao Cotar paredes do vinculo agora oferece:
+
+- Previa SVG no painel pyRevit e tabela com paredes/cotas possiveis/avisos, antes de confirmar. A previa e geometrica, sem modificar o modelo; o Revit valida as referencias ao criar as cotas.
+- Afastamento de 1 a 100 mm na folha; lado Automatico/Exterior/Interior para comprimento e Inicio/Final para espessura.
+- Preferencias locais por documento, vista e instancia: tipos de parede, modo, estilo, afastamento, lado e extremidade.
+- Toda a vista ou uma regiao retangular selecionada (paredes que cruzam a regiao).
+- Manter cotas validas e reparar quebradas, ou recriar as proprias cotas para aplicar outra posicao/estilo.
+- Relatorio com links nativos para cotas/vinculo e lista clicavel de paredes para selecionar e aproximar a vista. Se a selecao da parede vinculada nao for aceita, seleciona a instancia e ainda aproxima a parede.
+
+A substituicao so considera cotas registradas por este comando nas preferencias locais, e troca a antiga pela nova na mesma transacao. Falha na nova cota preserva a antiga. Cotas manuais nao sao apagadas. Cotas de versoes anteriores, criadas antes do registro, podem ser reconhecidas pelas referencias para evitar duplicacao, mas nao sao automaticamente excluidas/reparadas quando quebradas. A restauracao por Desfazer e mudanca de computador pode exigir revisar o registro local; nao e sincronizacao de configuracoes entre usuarios.
+
+Teste: executar com os mesmos tipos em duas vistas/instancias e conferir preferencias independentes; cancelar a previa e verificar que nenhum elemento mudou; limitar a uma regiao; trocar lado/afastamento/extremidade; recarregar o arquitetonico e reparar uma referencia quebrada; escolher atualizar posicao/estilo; confirmar preservacao de cotas manuais; clicar no relatorio para localizar uma parede. Posicionamento automatico em plantas congestionadas e recortes nao retangulares segue aproximado e precisa de conferencia no Revit.
