@@ -109,3 +109,11 @@ O botao Cotar paredes do vinculo agora oferece:
 A substituicao so considera cotas registradas por este comando nas preferencias locais, e troca a antiga pela nova na mesma transacao. Falha na nova cota preserva a antiga. Cotas manuais nao sao apagadas. Cotas de versoes anteriores, criadas antes do registro, podem ser reconhecidas pelas referencias para evitar duplicacao, mas nao sao automaticamente excluidas/reparadas quando quebradas. A restauracao por Desfazer e mudanca de computador pode exigir revisar o registro local; nao e sincronizacao de configuracoes entre usuarios.
 
 Teste: executar com os mesmos tipos em duas vistas/instancias e conferir preferencias independentes; cancelar a previa e verificar que nenhum elemento mudou; limitar a uma regiao; trocar lado/afastamento/extremidade; recarregar o arquitetonico e reparar uma referencia quebrada; escolher atualizar posicao/estilo; confirmar preservacao de cotas manuais; clicar no relatorio para localizar uma parede. Posicionamento automatico em plantas congestionadas e recortes nao retangulares segue aproximado e precisa de conferencia no Revit.
+
+### Selecionar cotas na previa
+
+A previa do comando de vinculo agora abre uma janela WPF interativa. Clique na linha de uma cota ou na lista Parede/Comprimento/Espessura para destaca-la. Controles individuais: incluir na operacao, afastamento em mm na folha, inverter lado e restaurar padrao. Zoom e rolagem ajudam a selecionar cotas pequenas.
+
+As escolhas sao separadas por parede, tipo de cota, vista e instancia; nao alteram medidas nem referencias. Excluir da operacao nao apaga cota existente. Alterar uma cota registrada pelo LAC solicita substituicao somente dela, na mesma transacao da criacao da nova. Ajustes recusados permanecem pendentes para uma proxima tentativa. Cotas manuais nao sao reposicionadas por esse fluxo. Cancelar a janela nao altera o modelo nem salva as alteracoes da selecao.
+
+O desenho e virtual e estimado, nao uma cota nativa ja existente no Revit. Depois de confirmar, a validacao das referencias e a busca de espaco livre podem ajustar a posicao. A janela e os eventos de clique precisam ser validados no pyRevit/Revit real; testes locais verificam os overrides, exclusao, restauracao, pendencias e estrutura XAML.

@@ -13,6 +13,8 @@ for helper in ('reference_key','rectangle','polygon_of_box','overlaps','wall_foo
 
 workflow=runpy.run_path(os.path.join(os.path.dirname(__file__),'workflow.py'),run_name='lac_link_workflow')
 
+preview=runpy.run_path(os.path.join(os.path.dirname(__file__),'preview.py'),run_name='lac_link_preview')
+
 class LinkedView:
     native_view=None
     def __init__(self,view,inverse):
@@ -158,6 +160,18 @@ def main():
         prepared[wall.UniqueId]=(specs,errors)
         rows.append({'wall':wall,'specs':specs,'errors':errors,'footprint':linked_footprint(wall,link,view,helpers)})
     output=script.get_output()
+    saved_overrides=saved.get('dimension_overrides',{})
+    if not any(row['specs'] for row in rows):
+        output.print_html(workflow['preview_html'](rows,view,helpers))
+        forms.alert('Nenhuma cota possui referencias geometricas candidatas. Consulte os avisos no painel.');return
+    individual=preview['show_preview'](rows,view,offset_mm,saved_overrides)
+    if individual is None:return
+    force_keys=preview['changed_keys'](saved_overrides,individual)|set(saved.get('pending_overrides',[]))
+    for row in rows:
+        row['specs']=preview['apply_overrides'](row['specs'],row['wall'],individual,offset_mm,view.Scale)
+        prepared[row['wall'].UniqueId]=(row['specs'],row['errors'])
+    selected_pairs={(row['wall'].UniqueId,spec[0]) for row in rows for spec in row['specs']}
+    replacement_ids={dim.Id.Value for key,items in managed.items() if key in selected_pairs for dim,valid in items if recreate or not valid or key[0]+'|'+key[1] in force_keys}
     output.print_html(workflow['preview_html'](rows,view,helpers))
     candidate_count=sum(len(set(spec[0] for spec in row['specs'])) for row in rows)
     invalid_count=sum(len(row['errors']) for row in rows)
@@ -182,6 +196,7 @@ def main():
     created = 0
     updated = 0
     result_dimensions=[]
+    applied_keys=set()
     group = DB.TransactionGroup(doc,'LAC - Cotar paredes')
     group.Start()
     try:
@@ -200,7 +215,8 @@ def main():
                     failures=[]
                     accepted=False
                     own=managed.get((wall.UniqueId,kind),[])
-                    if own and not recreate and any(valid for dim,valid in own):
+                    force_individual=preview['selection_key'](wall,kind) in force_keys
+                    if own and not recreate and not force_individual and any(valid for dim,valid in own):
                         messages.append(label+' - '+kind+': cota LAC valida preservada.')
                         if any(not valid for dim,valid in own):messages.append(label+' - '+kind+': ha outra cota LAC quebrada; escolha atualizar posicao/estilo para consolidar.')
                         continue
@@ -232,7 +248,7 @@ def main():
                                 raise ValueError('Referencias rejeitadas pela vista.')
                             if abs(dim.Value-expected)>0.001:
                                 raise ValueError('Referencia mede outra geometria, nao as extremidades propostas.')
-                            old=[dim for dim,valid in own if recreate or not valid]
+                            old=[dim for dim,valid in own if recreate or not valid or force_individual]
                             for previous in old:doc.Delete(previous.Id)
                             if transaction.Commit()!=DB.TransactionStatus.Committed:
                                 raise ValueError('Revit nao confirmou a cota.')
@@ -241,6 +257,7 @@ def main():
                                 updated+=1
                             records.append({'dimension':dim.UniqueId,'wall':wall.UniqueId,'link':link.UniqueId,'kind':kind})
                             result_dimensions.append(dim.Id)
+                            applied_keys.add(preview['selection_key'](wall,kind))
                             existing.add(key);occupied.append(area);created+=1;accepted=True;break
                         except Exception as error:
                             if transaction.GetStatus()==DB.TransactionStatus.Started:transaction.RollBack()
@@ -257,7 +274,7 @@ def main():
         raise
     finally:
         group.Dispose()
-    contexts[context]={'type_ids':sorted(type_ids),'scope':scope_choice,'mode':mode,'style':chosen,'offset_mm':offset_mm,'side':side,'endpoint':endpoint,'dimensions':records}
+    contexts[context]={'type_ids':sorted(type_ids),'scope':scope_choice,'mode':mode,'style':chosen,'offset_mm':offset_mm,'side':side,'endpoint':endpoint,'dimensions':records,'dimension_overrides':individual,'pending_overrides':preview['pending_keys'](force_keys,applied_keys,individual)}
     try:
         config.contexts=contexts
         script.save_config()
