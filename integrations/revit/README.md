@@ -42,3 +42,27 @@ Não apaga paredes/aberturas ausentes do novo JSON. Mudanças na consolidação 
 ## Caminho lembrado
 
 Importar/Atualizar LAC guarda o caminho do JSON e a assinatura dos dados após uma operação bem-sucedida, nas preferências locais do pyRevit, por ID do projeto Revit. Atualizar procura esse arquivo novamente. Se não existir, estiver inválido ou não houver alteração nos dados do modelo, oferece Escolher outro arquivo ou Cancelar. Cancelamentos e falhas não marcam o arquivo como atualizado. Exporte sobrescrevendo o mesmo JSON para usar esse fluxo. Não há monitoramento automático em segundo plano.
+
+## Cotagem automatica de paredes (Revit 2026.1)
+
+Novo comando: LAC > Levantamento > Cotar paredes. Selecione previamente uma ou varias paredes ou selecione apos acionar o comando. Escolha Comprimento, Espessura ou Comprimento + Espessura (padrao). Use o tipo atual do Revit ou selecione um tipo linear existente; nao cria nem modifica estilos.
+
+Funciona em plantas de piso, forro e estrutural. O eixo vem de LocationCurve; as faces sao extraidas com ComputeReferences e Options.View. Comprimento usa faces extremas perpendiculares ao eixo; espessura usa as faces de acabamento Interior/Exterior do HostObjectUtils, sem descontar camadas. Usa NewDimension e referencias reais, sem linhas de detalhe ou medidas escritas como texto.
+
+Afastamento inicial: 8 mm na folha, convertido pela escala da vista. O comando usa o lado exterior indicado pela parede e acrescenta faixas quando encontra obstaculos, ate 16 tentativas. Espessura fica junto a uma extremidade, do lado de fora do comprimento. Evita paredes, cotas, textos e tags por uma aproximacao geometrica; ocupacao de texto, recortes nao retangulares e anotacoes complexas podem exigir ajuste manual. Cotas podem ser movidas normalmente no Revit.
+
+Ignora curvas, eixos fora do plano e paredes sem referencias validas na vista. Encontros unidos/chanfrados podem nao fornecer faces extremas perpendiculares: nesse caso informa a impossibilidade em vez de cotar a abertura como comprimento. Cada cota tem sua transacao; falhas ficam no relatorio sem cancelar as demais. As transacoes sao agrupadas para um unico Desfazer. Referencias ja cotadas na vista sao ignoradas mesmo quando a ordem esta invertida.
+
+### Testar no Revit
+
+1. Recarregue pyRevit; abra uma planta de um projeto de teste.
+2. Selecione paredes retas horizontais, verticais e a 45/82 graus, preferencialmente com extremidades livres. Inclua uma curva.
+3. Acione Cotar paredes com o modo padrao: confira comprimento paralelo e espessura perpendicular, ambos nativos.
+4. Altere comprimento/espessura da parede e confira a atualizacao associativa. Nenhuma medida e substituida pelo comando.
+5. Execute novamente: nao deve criar cotas duplicadas. Experimente os modos separados e outro tipo linear existente.
+6. Inclua parede com extremidades unidas sem faces validas, parede oculta e vista 3D: confira os avisos e a preservacao das cotas validas.
+7. Confira em vista rotacionada, escalas diferentes e recorte ativo; verifique posicionamento e ajuste manual de casos congestionados.
+
+Testes locais: `python integrations/revit/tests/test_dimensions.py` valida direcoes, modos, falta de referencias, colisao e chave de duplicacao com objetos simulados. Nao substitui testes dentro do Revit. Nao ha .sln/.csproj; a extensao Python e compilada/analisada sintaticamente. `npm run build` valida o site existente.
+
+API: https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/475aab91-19d3-5884-d3eb-18dfc0d4004f.htm
