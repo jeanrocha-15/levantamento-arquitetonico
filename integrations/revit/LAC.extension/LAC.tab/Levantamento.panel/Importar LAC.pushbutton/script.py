@@ -77,7 +77,7 @@ def main():
                 break
         except (IOError, OSError, ValueError, KeyError, TypeError) as error:
             reason = 'Arquivo n\xe3o encontrado ou inv\xe1lido:\n{0}\n{1}'.format(path, error)
-        choice = forms.CommandSwitchWindow.show(['Escolher outro arquivo', 'Cancelar'], message=reason)
+        choice = forms.CommandSwitchWindow.show(['Escolher outro arquivo', 'Cancelar'], title='LAC - Arquivo de levantamento', message=reason)
         if choice != 'Escolher outro arquivo':
             return
         path = None

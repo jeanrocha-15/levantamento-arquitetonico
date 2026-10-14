@@ -290,7 +290,7 @@ def main():
         prefix='Vinculo {0} / Parede {1} - '.format(link.Id.Value,row['wall'].Id.Value)
         details=[message[len(prefix):] for message in messages if message.startswith(prefix)]
         review['Parede {0} - {1}'.format(row['wall'].Id.Value,('; '.join(details) or 'Conferir cotas')[:180])]=row['wall']
-    while forms.CommandSwitchWindow.show(['Localizar parede do relatorio','Fechar'],message='Resultado: {0} cotas processadas; {1} substituidas. Escolha uma parede para aproximar a vista.'.format(created,updated))=='Localizar parede do relatorio':
+    while forms.CommandSwitchWindow.show(['Localizar parede do relatorio','Fechar'],title='LAC - Revisar cotas do vinculo',message='Resultado: {0} cotas processadas; {1} substituidas. Escolha uma parede para aproximar a vista.'.format(created,updated))=='Localizar parede do relatorio':
         item=forms.SelectFromList.show(sorted(review),title='Relatorio - clique na parede para localizar',multiselect=False)
         if not item:break
         workflow['locate_wall'](revit.uidoc,view,review[item],link)
