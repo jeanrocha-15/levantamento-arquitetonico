@@ -117,3 +117,24 @@ A previa do comando de vinculo agora abre uma janela WPF interativa. Clique na l
 As escolhas sao separadas por parede, tipo de cota, vista e instancia; nao alteram medidas nem referencias. Excluir da operacao nao apaga cota existente. Alterar uma cota registrada pelo LAC solicita substituicao somente dela, na mesma transacao da criacao da nova. Ajustes recusados permanecem pendentes para uma proxima tentativa. Cotas manuais nao sao reposicionadas por esse fluxo. Cancelar a janela nao altera o modelo nem salva as alteracoes da selecao.
 
 O desenho e virtual e estimado, nao uma cota nativa ja existente no Revit. Depois de confirmar, a validacao das referencias e a busca de espaco livre podem ajustar a posicao. A janela e os eventos de clique precisam ser validados no pyRevit/Revit real; testes locais verificam os overrides, exclusao, restauracao, pendencias e estrutura XAML.
+
+## Exportar Revit para LAC (JSON de intercambio)
+
+Botao separado: LAC > Levantamento > Exportar Revit para LAC. Escolha Projeto aberto ou Vinculo Revit, todos ou alguns pavimentos, e modo Detalhado (recomendado para analise). Escolha onde salvar o JSON. O comando so le documentos: nao altera o Revit, nao copia objetos e nao cria transacoes.
+
+Contrato: `format: revit-lac-exchange`, `schemaVersion: 1`, medidas em metros, areas em m2, volumes em m3 e angulos em graus. IDs numericos como strings e UniqueId estrutural preservado. Guarda coordenadas Revit XYZ originais e coordenadas transformadas para o hospedeiro, incluindo instancia de vinculo e matriz/espelhamento. Nao desloca para a origem nem aplica escala grafica.
+
+Conteudo:
+
+- Niveis, elevacoes, fases, origem/coordenadas compartilhadas e unidades de exibicao.
+- Ambientes e espacos, contornos por face de acabamento com todos os loops; areas/volumes e altura nao limitada do Revit, identificada como dado do modelo, sem chamar de PD medido.
+- Paredes: eixo reto/curvo, espessura, altura nao conectada, restricoes de nivel, offsets e tipo; camadas e materiais dos tipos.
+- Portas/janelas: hospedeiro, largura/altura, peitoril, posicao e associacao de ambientes na fase padrao do Revit; aberturas genericas como entidade propria.
+- Objetos, mesas/mobiliario, vasos/loucas sanitarias, pilares, vigas, equipamentos, pisos, telhados, forros, escadas e rampas. Categorias desconhecidas continuam no inventario com classe, parametros e bounding box.
+- Eixos de referencia (grids), vistas de planta/corte/elevacao/folhas, orientacao e recorte quando disponiveis.
+- Cotas nativas: valores, segmentos, textos/ValueOverride existentes no projeto, tipo/estilo, referencias estaveis e vista proprietaria. Cotas angulares usam graus; linhas infinitas guardam origem/direcao, nao um comprimento ficticio.
+- Textos, tags, curvas de detalhe e simbolos de vista como anotacoes separadas; relacao de viewport com a vista colocada na folha.
+
+Nao e um backup LAC nem um substituto completo do RVT. A conversao/importacao de elementos editaveis no site sera feita apos validar um arquivo real. Familias/solidos detalhados, imagens e conteudo de tabelas nao sao reconstruidos; bounding boxes/tessellation sao marcados como aproximados. Sem Rooms cadastrados, nao inventa ambientes. Vinculos aninhados sao registrados mas nao percorridos. Ao selecionar niveis, itens sem nivel nao entram no modelo filtrado; vistas sem GenLevel (como cortes/elevacoes) continuam para leitura. Arquivos grandes podem conter muitas anotacoes/parametros.
+
+Para testar: exporte um pequeno modelo com parede reta e curva, porta, janela, mesa, vaso, pilar, niveis e uma vista com cotas; confira resumo e avisos. Exporte um vinculo rotacionado para conferir coordenadas locais/hospedeiras. Envie o JSON para analise antes da conversao para o site. O arquivo e gravado em UTF-8, com substituicao atomica do destino; cancelamento da leitura nao substitui o arquivo existente.
