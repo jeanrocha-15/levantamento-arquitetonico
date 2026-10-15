@@ -15,6 +15,28 @@ METERS_PER_FOOT=0.3048
 FORMAT='revit-lac-exchange'
 SCHEMA_VERSION=1
 
+def model_candidate(element):
+    # CategoryType.Model also includes document resources, not just built objects.
+    if not element.Category or element.Category.CategoryType!=DB.CategoryType.Model:return False
+    if element.ViewSpecific:return False
+    if isinstance(element,DB.View):return False
+    class_name=element.GetType().Name
+    return class_name not in ('Material','AppearanceAssetElement','PropertySetElement',
+        'StructuralAsset','ThermalAsset','ViewSheet','View','ViewPlan','View3D',
+        'ProjectInfo','BasePoint','InternalOrigin','SunAndShadowSettings',
+        'Sketch','SketchPlane','PipeSegment','LegendComponent')
+
+def point_location_data(location,transform):
+    result={'position':xyz(location.Point),'hostPosition':xyz(transform.OfPoint(location.Point))}
+    # Rooms expose LocationPoint but do not support Rotation.
+    try:result['rotationDegrees']=location.Rotation*180/math.pi
+    except Exception:pass
+    return result
+
+def write_json_stream(data,stream):
+    encoder=json.JSONEncoder(ensure_ascii=False,allow_nan=False,default=json_native_value,separators=(',',':'))
+    for chunk in encoder.iterencode(data):stream.write(chunk.encode('utf-8'))
+
 def json_native_value(value):
     """Convert CLR scalar wrappers only; never stringify unknown model objects."""
     native_type=value.GetType().FullName if hasattr(value,'GetType') else None
@@ -143,7 +165,7 @@ def serialize_element(element,doc,transform,detailed):
         try:result['axis']=curve_data(location.Curve,transform)
         except Exception as error:result['issues'].append('Eixo: {0}'.format(error))
     elif isinstance(location,DB.LocationPoint):
-        result['position']=xyz(location.Point);result['hostPosition']=xyz(transform.OfPoint(location.Point));result['rotationDegrees']=location.Rotation*180/math.pi
+        result.update(point_location_data(location,transform))
     if isinstance(element,DB.Wall):
         result['thicknessM']=element.Width*METERS_PER_FOOT
         result['unconnectedHeightM']=length_parameter(element,DB.BuiltInParameter.WALL_USER_HEIGHT_PARAM)
@@ -313,7 +335,8 @@ def main():
     for grid in DB.FilteredElementCollector(doc).OfClass(DB.Grid):
         try:data['grids'].append(dict(element_ref(grid),name=revit.query.get_name(grid),curve=curve_data(grid.Curve,transform)))
         except Exception as error:data['warnings'].append('Eixo {0}: {1}'.format(grid.Id.Value,error))
-    elements=[element for element in DB.FilteredElementCollector(doc).WhereElementIsNotElementType().WhereElementIsViewIndependent() if element.Category and element.Category.CategoryType==DB.CategoryType.Model]
+    elements=[element for element in DB.FilteredElementCollector(doc).WhereElementIsNotElementType().WhereElementIsViewIndependent() if model_candidate(element)]
+    data['unplacedRooms']=[]
     used_types=set();used_materials=set();skipped=0
     with forms.ProgressBar(title='Exportando {value}/{max_value}',cancellable=True,step=20) as progress:
         for index,element in enumerate(elements):
@@ -322,6 +345,9 @@ def main():
             try:
                 level=level_ref(element,doc)
                 if scope!='Todos os pavimentos' and (not level or level['elementId'] not in selected_ids):skipped+=1;continue
+                if isinstance(element,DB.SpatialElement) and element.Location is None:
+                    data['unplacedRooms'].append(dict(element_ref(element),name=revit.query.get_name(element),level=level,reason='not_placed'))
+                    continue
                 record=serialize_element(element,doc,transform,detail.startswith('Detalhado'))
                 data['elements'].append(record)
                 if record.get('type'):used_types.add(record['type']['elementId'])
@@ -374,11 +400,11 @@ def main():
     for record in data['elements']:counts[record['kind']]=counts.get(record['kind'],0)+1
     data['summary']={'byKind':counts,'totalElements':len(data['elements']),'elementsOutsideSelectedLevels':skipped,'unassignedLevel':sum(1 for e in data['elements'] if not e.get('level')),'roomCount':counts.get('room',0),'issueCount':sum(len(e.get('issues',[])) for e in data['elements']),'dimensionCount':len(data['dimensions']),'annotationCount':len(data['annotations']),'viewCount':len(data['views'])}
     if not data['summary']['roomCount']:data['warnings'].append('Sem Rooms/Ambientes cadastrados. Nao foram inventados ambientes a partir de paredes.')
-    payload=json.dumps(data,ensure_ascii=False,allow_nan=False,indent=2,default=json_native_value).encode('utf-8')
+    data['summary']['unplacedRoomCount']=len(data['unplacedRooms'])
     from System.IO import File
     temp=tempfile.NamedTemporaryFile(prefix='revit-lac-',suffix='.tmp',dir=os.path.dirname(path),delete=False)
     try:
-        temp.write(payload);temp.close()
+        write_json_stream(data,temp);temp.close()
         if File.Exists(path):File.Replace(temp.name,path,None)
         else:File.Move(temp.name,path)
     finally:
@@ -386,6 +412,7 @@ def main():
         if os.path.exists(temp.name):os.remove(temp.name)
     output=script.get_output()
     output.print_md('## Exportacao Revit para LAC')
+    output.print_md('Ambientes nao posicionados (lista separada): {0}'.format(len(data['unplacedRooms'])))
     for kind,count in sorted(counts.items()):output.print_md('- {0}: {1}'.format(kind,count))
     for warning in data['warnings']:output.print_md('- Aviso: '+warning)
     forms.alert('JSON gerado: {0}\n{1} elementos, {2} ambientes, {3} cotas, {4} anotacoes e {5} vistas. {6} avisos de leitura. Arquivo de intercambio/analise; nao e backup LAC.'.format(path,len(data['elements']),counts.get('room',0),len(data['dimensions']),len(data['annotations']),len(data['views']),len(data['warnings'])))

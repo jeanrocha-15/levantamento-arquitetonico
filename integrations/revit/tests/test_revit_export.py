@@ -26,6 +26,33 @@ def load():
     scope={'DB':types.SimpleNamespace(Line=Line,Arc=Arc,StorageType=storage,SpecTypeId=specs),'METERS_PER_FOOT':.3048,'math':math}
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),scope);return scope
 class Tests(unittest.TestCase):
+    def test_room_location_survives_unsupported_rotation(self):
+        class Location:
+            Point=Point(2,3)
+            @property
+            def Rotation(self):raise RuntimeError('Rotation not supported')
+        result=load()['point_location_data'](Location(),Transform())
+        self.assertEqual(result['position'],[.6096,.9144000000000001,0])
+        self.assertIn('hostPosition',result)
+        self.assertNotIn('rotationDegrees',result)
+
+    def test_resources_are_not_building_elements(self):
+        scope=load();scope['DB'].CategoryType=types.SimpleNamespace(Model='model');scope['DB'].View=type('View',(),{})
+        def element(name):
+            return types.SimpleNamespace(Category=types.SimpleNamespace(CategoryType='model'),ViewSpecific=False,GetType=lambda:types.SimpleNamespace(Name=name))
+        for name in ['Material','AppearanceAssetElement','PropertySetElement','Sketch','PipeSegment','LegendComponent']:
+            self.assertFalse(scope['model_candidate'](element(name)),name)
+        for name in ['Wall','FamilyInstance','Room','Floor','RoofBase']:
+            self.assertTrue(scope['model_candidate'](element(name)),name)
+
+    def test_streaming_json_preserves_content(self):
+        import io,json
+        scope=load();scope['json']=json
+        content={'name':'Pavimento \u00e9','elements':[{'length':3.25,'id':'9007199254740993'}]}
+        stream=io.BytesIO();scope['write_json_stream'](content,stream)
+        self.assertEqual(json.loads(stream.getvalue()),content)
+        with self.assertRaises(ValueError):scope['write_json_stream']({'value':float('nan')},io.BytesIO())
+
     def test_clr_integer_serialization(self):
         import json
         class ClrInteger:
