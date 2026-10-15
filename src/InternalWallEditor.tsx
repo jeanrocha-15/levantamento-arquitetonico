@@ -1,3 +1,5 @@
+import {useEffect,useState} from 'react'
+import {ContextHelp,CadCommands} from './CadWorkspace'
 import { nextVisualSequence } from './visualIds'
 import { ElementPhotos } from './PhotoActions'
 import { MeasurementInput, useMeasurements } from './Measurement'
@@ -8,21 +10,25 @@ import { getWallReferences } from './openings'
 import { internalWallLabel } from './internalWalls'
 import type { InternalWallCheck } from './internalWalls'
 
-export default function InternalWallEditor({ room, onChange, checks }: { room: Room; onChange: (room: Room) => void; checks: InternalWallCheck[] }) {
+export default function InternalWallEditor({ room, onChange, checks, contextual=false,focusId }: { contextual?:boolean;focusId?:string;room: Room; onChange: (room: Room) => void; checks: InternalWallCheck[] }) {
+  const [inspected,setInspected]=useState(focusId??'')
+  useEffect(()=>{setInspected(focusId??'')},[focusId])
   const { unit, format } = useMeasurements()
   function addInternalWall() {
     const wall = room.walls[0]
     const reference = getWallReferences(room.walls, room.corners, wall.id)[0]
     const sequence = nextVisualSequence(room.internalWalls.map(w=>w.label),'PI')
     const internalWall: InternalWall = { id: id(), label: internalWallLabel(sequence), origin: { type: 'perimeter_wall', wallId: wall.id, referenceCornerId: reference.id, distanceM: null }, lengthM: null, orientationDegrees: 90, thicknessM: .15, heightM: null }
+    setInspected(internalWall.id)
     onChange({ ...room, internalWalls: [...room.internalWalls, internalWall], internalWallCounter: sequence })
   }
   return <section className="internal-wall-editor" aria-label="Paredes internas">
     <h3>Paredes internas</h3>
-    <p className="angle-help">Cada PI pertence somente a este ambiente e parte de uma parede do perímetro. A sequência A, B, C… permanece independente.</p>
-    <button className="primary" disabled={room.walls.length < 2} onClick={addInternalWall}>＋ Adicionar parede interna</button>
+    <ContextHelp><p className="angle-help">Cada PI pertence somente a este ambiente e parte de uma parede do perímetro. A sequência A, B, C… permanece independente.</p></ContextHelp>
+    <CadCommands area="Elementos"><button className="primary" disabled={room.walls.length < 2} onClick={addInternalWall}>＋ Adicionar parede interna</button></CadCommands>
     {room.walls.length < 2 && <p className="angle-help">Cadastre pelo menos duas paredes para identificar os cantos de referência.</p>}
-    {room.internalWalls.map(internalWall => {
+    {contextual&&<label>Propriedades da parede interna<select aria-label="Selecionar parede interna nas propriedades" value={inspected} onChange={e=>setInspected(e.target.value)}><option value="">Todas as paredes internas</option>{room.internalWalls.map(w=><option key={w.id} value={w.id}>{w.label}</option>)}</select></label>}
+    {room.internalWalls.filter(w=>!contextual||!room.internalWalls.some(w=>w.id===inspected)||w.id===inspected).map(internalWall => {
       const origin = internalWall.origin
       const check = checks.find(check => check.id === internalWall.id)
       const update = (changes: Partial<InternalWall>) => onChange({ ...room, internalWalls: room.internalWalls.map(item => item.id === internalWall.id ? { ...item, ...changes } : item) })

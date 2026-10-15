@@ -1,3 +1,4 @@
+import {CadCommands,ContextHelp} from './CadWorkspace'
 import { nextProjectOpeningSequence } from './spatialConnections'
 import { ElementPhotos } from './PhotoActions'
 import { MeasurementInput, useMeasurements } from './Measurement'
@@ -14,13 +15,14 @@ import { visualDoor } from './openingSymbols'
 import type { RoomOption } from './RoomConnections'
 import { useEffect, useState } from 'react'
 
-export default function OpeningEditor({ room, onChange, checks, relatedRooms = [], focusId, project, onProjectChange }: { room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[]; focusId?: string; project:Project; onProjectChange?:(project:Project)=>void }) {
+export default function OpeningEditor({ contextual=false, room, onChange, checks, relatedRooms = [], focusId, project, onProjectChange }: { contextual?:boolean; room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[]; focusId?: string; project:Project; onProjectChange?:(project:Project)=>void }) {
   const { unit, format } = useMeasurements()
+  const [inspected,setInspected]=useState(focusId??'')
   const [typeFilter,setTypeFilter]=useState('')
   const [wallFilter,setWallFilter]=useState('')
   const [offerType,setOfferType]=useState<OpeningType>()
   const incoming=(type:OpeningType)=>relatedRooms.flatMap(({room:r})=>r.openings.filter(o=>o.type===type && o.connectedRoomId===room.id && !o.connectedOpeningId).map(o=>({room:r,opening:o})))
-  useEffect(()=>{if(focusId){setTypeFilter('');setWallFilter('')}},[focusId])
+  useEffect(()=>{if(focusId){setTypeFilter('');setWallFilter('');setInspected(focusId)}},[focusId])
   const canAdd = room.walls.length >= 2
   function addOpening(type: OpeningType, counterpart?:Opening, targetRoomId?:string, independent=false) {
     if(!independent && !counterpart && type!=='window' && onProjectChange && incoming(type).length){setOfferType(type);return}
@@ -31,16 +33,17 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
     const opening: Opening = { id: id(), label: openingLabel(type, sequence), type, wallId: wall.id, referenceCornerId: reference.id, offsetM: null, widthM: null, heightM: null, sillHeightM: null, ...(type === 'door' ? { doorKind: 'hinged' as const } : {}) }
     const next={ ...room, openings: [...room.openings, counterpart?{...opening,label:counterpart.label,widthM:counterpart.widthM,heightM:counterpart.heightM,connectedRoomId:targetRoomId,connectedOpeningId:counterpart.id,originOpeningId:counterpart.originOpeningId??counterpart.id}:opening], openingCounters: { ...room.openingCounters, [type]: sequence } }
     onChange(next)
-    setTypeFilter(type); setWallFilter('')
+    setTypeFilter(type); setWallFilter('');setInspected(opening.id)
   }
   return <section className="opening-editor" aria-label="Aberturas nas paredes">
     <h3>Portas, janelas e vãos</h3>
-    <p className="angle-help">Medidas em {unit}. A distância parte do canto escolhido até a borda mais próxima da abertura. O croqui acompanha a unidade do projeto.</p>
-    <div className="opening-actions">{(['door', 'window', 'gap'] as const).map(type => <button key={type} disabled={!canAdd} onClick={() => addOpening(type)}>＋ {openingNames[type]}</button>)}</div>
+    <ContextHelp><p className="angle-help">Medidas em {unit}. A distância parte do canto escolhido até a borda mais próxima da abertura. O croqui acompanha a unidade do projeto.</p></ContextHelp>
+    <CadCommands area="Aberturas"><div className="opening-actions">{(['door', 'window', 'gap'] as const).map(type => <button key={type} disabled={!canAdd} onClick={() => addOpening(type)}>＋ {openingNames[type]}</button>)}</div></CadCommands>
     {offerType && <div className="opening-offer" role="dialog" aria-label="Usar abertura existente?"><h4>Usar abertura existente?</h4>{incoming(offerType).map(candidate=><div key={candidate.opening.id}><p>Usar {candidate.opening.label} existente de {candidate.room.name}?</p><button onClick={()=>addOpening(offerType,candidate.opening,candidate.room.id)}>Usar existente — {candidate.room.name} / {candidate.opening.label}</button></div>)}<button onClick={()=>addOpening(offerType,undefined,undefined,true)}>Criar independente</button><button onClick={()=>setOfferType(undefined)}>Cancelar</button></div>}
     <div className="category-filters"><label>Mostrar tipo<select value={typeFilter} onChange={event=>setTypeFilter(event.target.value)}><option value="">Todos os tipos</option>{Object.entries(openingNames).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Mostrar parede<select value={wallFilter} onChange={event=>setWallFilter(event.target.value)}><option value="">Todas as paredes</option>{[...room.walls,...room.internalWalls].map(wall=><option key={wall.id} value={wall.id}>Parede {wall.label}</option>)}</select></label></div>
     {!canAdd && <p className="angle-help">Cadastre pelo menos duas paredes para identificar os cantos de referência.</p>}
-    {room.openings.filter(opening=>(!typeFilter || opening.type===typeFilter) && (!wallFilter || opening.wallId===wallFilter)).map(opening => {
+    {contextual&&<label>Propriedades da abertura<select aria-label="Selecionar abertura nas propriedades" value={inspected} onChange={e=>{setInspected(e.target.value);setTypeFilter('');setWallFilter('')}}><option value="">Todas as aberturas</option>{room.openings.map(o=><option key={o.id} value={o.id}>{o.label} · {openingNames[o.type]}</option>)}</select></label>}
+    {room.openings.filter(opening=>(!contextual||!room.openings.some(o=>o.id===inspected)||opening.id===inspected)&&(!typeFilter || opening.type===typeFilter) && (!wallFilter || opening.wallId===wallFilter)).map(opening => {
       const references = getWallReferences(room.walls, room.corners, opening.wallId,room.internalWalls)
       const reference = references.find(item => item.id === opening.referenceCornerId)
       const wall = [...room.walls,...room.internalWalls].find(item => item.id === opening.wallId)
@@ -55,8 +58,8 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
           {field('widthM', `Largura (${unit})`)}{field('heightM', `Altura (${unit})`)}
           {opening.type === 'window' && field('sillHeightM', `Peitoril (${unit})`)}
           <div className="opening-offset">{field('offsetM', `Distância do canto até a borda da abertura (${unit})`)}</div>
-          {opening.type !== 'gap' && <OpeningAppearance opening={opening} update={update}/>}
-          {opening.type === 'door' && !['gap','other','folding'].includes(visualDoor(opening)) && <fieldset className="door-operation">
+          {opening.type !== 'gap' && <details className="ui-disclosure"><summary>Aparência e material</summary><OpeningAppearance opening={opening} update={update}/></details>}
+          {opening.type === 'door' && !['gap','other','folding'].includes(visualDoor(opening)) && <details className="ui-disclosure"><summary>Folhas e sentido de abertura</summary><fieldset className="door-operation">
             <legend>Funcionamento da porta <span>(esquerda/direita vistas de dentro do ambiente, olhando para a parede)</span></legend>
 
             {!visualDoor(opening).startsWith('slide') ? <>
@@ -66,16 +69,16 @@ export default function OpeningEditor({ room, onChange, checks, relatedRooms = [
               {visualDoor(opening)!=='slide_both'&&<label>Corre para<select value={opening.slideDirection ?? ''} onChange={event => update({ slideDirection: event.target.value === 'left' || event.target.value === 'right' ? event.target.value : undefined })}><option value="">Não informado</option><option value="left">Para a esquerda</option><option value="right">Para a direita</option></select></label>}
               <label>Folha pelo lado<select value={opening.swing ?? ''} onChange={event => update({ swing: event.target.value === 'inward' || event.target.value === 'outward' ? event.target.value : undefined })}><option value="">Não informado</option><option value="inward">De dentro do ambiente</option><option value="outward">De fora do ambiente</option></select></label>
             </>}
-          </fieldset>}
+          </fieldset></details>}
         </div>
         <p className="opening-summary">{opening.label} · Parede {wall?.label ?? '?'} · {format(opening.widthM, false)} × {format(opening.heightM)}{opening.type === 'window' ? ` · P=${format(opening.sillHeightM)}` : ''}<br/>{format(opening.offsetM)} do canto {reference?.label ?? '?'} até a borda mais próxima.{opening.type === 'door' && <><br/>{doorDescription(opening)}.</>}</p>
 
-        {opening.type !== 'window' && <OpeningConnection floorId={room.floorId} opening={opening} roomId={room.id} rooms={relatedRooms} onChange={update} onCreate={onProjectChange?(name,parentId)=>{
+        {opening.type !== 'window' && <details className="ui-disclosure"><summary>Vinculação</summary><OpeningConnection floorId={room.floorId} opening={opening} roomId={room.id} rooms={relatedRooms} onChange={update} onCreate={onProjectChange?(name,parentId)=>{
           const sequence=nextRoomSequence(project)
           const target={...createRoom(name,room.floorId,parentId),displayId:roomDisplayId(sequence)}
           const current={...room,openings:room.openings.map(o=>o.id===opening.id?{...o,connectedRoomId:target.id,connectedOpeningId:undefined}:o)}
           onProjectChange({...project,roomDisplayCounter:sequence,floors:project.floors.map(f=>f.id===room.floorId?{...f,rooms:parentId?updateRoom(updateRoom(f.rooms,room.id,()=>current),parentId,r=>({...r,subrooms:[...r.subrooms,target]})):[...updateRoom(f.rooms,room.id,()=>current),target]}:f)})
-        }:undefined}/>}
+        }:undefined}/></details>}
         {check && check.messages.length > 0 && <div className="opening-feedback" aria-live="polite">{check.messages.map(message => <p key={message}>{message}</p>)}</div>}
       </section>
     })}
