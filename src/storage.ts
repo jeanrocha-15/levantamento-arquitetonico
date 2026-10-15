@@ -1,3 +1,4 @@
+import {repairRoomOpenings} from './bim/repairRoomOpenings'
 import { storagePrefix } from './releaseChannel'
 import { prepareOpeningConnections } from './spatialConnections'
 import { validComposition } from './pdf/compositions'
@@ -12,7 +13,7 @@ import { generateId } from './domain'
 import { ensureProjectMetadata } from './projectMetadata'
 import { isMeasurementUnit } from './units'
 
-export const SCHEMA_VERSION = 13
+export const SCHEMA_VERSION = 14
 export { DATABASE_NAME, storageScope } from './database'
 const BASE_JOURNAL = `${storagePrefix}campo-autosave-journal-v1`, BASE_LOCAL = `${storagePrefix}campo-local-workspace-v1`
 export const JOURNAL_KEY = `${BASE_JOURNAL}${scope}`
@@ -32,7 +33,7 @@ export function createSnapshot(data: WorkspaceData): StoredWorkspace {
 export function readSnapshot(value: unknown): StoredWorkspace {
   if (!value || typeof value !== 'object') throw new Error('O arquivo local de projetos é inválido. Os dados existentes foram preservados.')
   const record = value as StoredWorkspace
-  if (record.schemaVersion !== 1 && record.schemaVersion !== 2 && record.schemaVersion !== 3 && record.schemaVersion !== 4 && record.schemaVersion !== 5 && record.schemaVersion !== 6 && record.schemaVersion !== 7 && record.schemaVersion !== 8 && record.schemaVersion !== 9 && record.schemaVersion !== 10 && record.schemaVersion !== 11 && record.schemaVersion !== 12 && record.schemaVersion !== SCHEMA_VERSION) throw new Error('Esta versão dos dados locais não é compatível com a aplicação. Os projetos existentes foram preservados.')
+  if (record.schemaVersion !== 1 && record.schemaVersion !== 2 && record.schemaVersion !== 3 && record.schemaVersion !== 4 && record.schemaVersion !== 5 && record.schemaVersion !== 6 && record.schemaVersion !== 7 && record.schemaVersion !== 8 && record.schemaVersion !== 9 && record.schemaVersion !== 10 && record.schemaVersion !== 11 && record.schemaVersion !== 12 && record.schemaVersion !== 13 && record.schemaVersion !== SCHEMA_VERSION) throw new Error('Esta versão dos dados locais não é compatível com a aplicação. Os projetos existentes foram preservados.')
   const number = (value: unknown) => value === null || typeof value === 'number'
   const strings = (value: unknown): value is string[] => Array.isArray(value) && value.length === 2 && value.every(item => typeof item === 'string')
   const entity = (value: unknown): value is { id: string } => !!value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string'
@@ -75,6 +76,7 @@ export function readSnapshot(value: unknown): StoredWorkspace {
   if(!data.projects.every(p=>p.pdfCompositions===undefined||Array.isArray(p.pdfCompositions)&&p.pdfCompositions.every(validComposition)&&new Set(p.pdfCompositions.map(c=>c.id)).size===p.pdfCompositions.length))throw new Error('Composições de PDF inválidas. Os dados foram preservados.')
   if (record.schemaVersion < 8) return { ...record, schemaVersion: SCHEMA_VERSION, data: { ...data, projects: data.projects.map(project => { const migrated = ensureProjectMetadata(project); return omitUndefined(reconcileRelationships({ ...migrated, floors: migrated.floors.map(floor => ({ ...floor, rooms: floor.rooms.map(migrateRoomObjects).map(migrateRoomPhotos) })) })) }) } }
   if(record.schemaVersion<13)return {...record,schemaVersion:SCHEMA_VERSION,data:{...data,projects:data.projects.map(p=>prepareOpeningConnections(p))}}
+  if(record.schemaVersion<14)return {...record,schemaVersion:SCHEMA_VERSION,data:{...data,projects:data.projects.map(repairRoomOpenings)}}
   return {...record,schemaVersion:SCHEMA_VERSION}
 }
 // The synchronous journal protects edits made immediately before closing the page.

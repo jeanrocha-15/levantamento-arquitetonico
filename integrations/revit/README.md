@@ -12,6 +12,12 @@ A versão principal anterior foi consolidada antes desta evolução. O trabalho 
 
 O plugin processa Levels, paredes físicas, aberturas/elementos e finalmente Rooms. Usa Extensible Storage para `lacId`, projeto, última entrada e estado geométrico sincronizado. Tipos compartilhados de família não são alterados diretamente para ajustar objetos: quando necessário, cria um tipo separado. Exclusões exigem confirmação e são revertidas se afetarem dependentes não autorizados.
 
+## Opções de exportação e aberturas especiais
+
+O modo Essencial é o padrão. Uma única lista permite incluir vínculos/CAD/nuvens como referências leves e incluir modelos genéricos/não identificados. Desmarcados, são filtrados antes da leitura de geometria. O conteúdo de vínculos adicionais não é percorrido; o vínculo Revit escolhido como origem continua sendo exportado normalmente.
+
+Famílias identificadas como portas/janelas de rolar são convertidas em vãos provisórios com nota de origem. Parâmetros dimensionais conhecidos são preservados; sem largura disponível, aparece um marcador para completar a medida, sem inventar um recorte. Famílias sem hospedeiro inequívoco continuam como referência externa. Reexporte o arquivo para incluir elementos que não estavam no JSON anterior.
+
 ## Contrato e rastreabilidade
 
 `format: lac-exchange`, `schemaVersion: 1`, `units: m`.

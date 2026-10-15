@@ -16,16 +16,18 @@ METERS_PER_FOOT=0.3048
 FORMAT='revit-lac-exchange'
 SCHEMA_VERSION=1
 
-def model_candidate(element):
+def model_candidate(element,include_links=False,include_generic=True):
     # CategoryType.Model also includes document resources, not just built objects.
     if not element.Category or element.Category.CategoryType!=DB.CategoryType.Model:return False
     if element.ViewSpecific:return False
     if isinstance(element,DB.View):return False
     class_name=element.GetType().Name
+    if class_name in ('ImportInstance','RevitLinkInstance','PointCloudInstance'):return include_links
+    if not include_generic and classify(element)=='other_model_element':return False
     return class_name not in ('Material','AppearanceAssetElement','PropertySetElement',
         'StructuralAsset','ThermalAsset','ViewSheet','View','ViewPlan','View3D',
         'ProjectInfo','BasePoint','InternalOrigin','SunAndShadowSettings',
-        'Sketch','SketchPlane','PipeSegment','LegendComponent')
+        'Sketch','SketchPlane','PipeSegment','LegendComponent','ImportInstance','RevitLinkInstance','PointCloudInstance')
 
 def point_location_data(location,transform):
     result={'position':xyz(location.Point),'hostPosition':xyz(transform.OfPoint(location.Point))}
@@ -145,7 +147,13 @@ def classify(element):
     if not category:return 'unknown'
     value=category.Id.Value
     mapping={int(DB.BuiltInCategory.OST_Walls):'wall',int(DB.BuiltInCategory.OST_Rooms):'room',int(DB.BuiltInCategory.OST_MEPSpaces):'space',int(DB.BuiltInCategory.OST_Doors):'door',int(DB.BuiltInCategory.OST_Windows):'window',int(DB.BuiltInCategory.OST_Floors):'floor',int(DB.BuiltInCategory.OST_Roofs):'roof',int(DB.BuiltInCategory.OST_StructuralColumns):'structural_column',int(DB.BuiltInCategory.OST_Columns):'column',int(DB.BuiltInCategory.OST_StructuralFraming):'structural_framing',int(DB.BuiltInCategory.OST_Furniture):'furniture',int(DB.BuiltInCategory.OST_MechanicalEquipment):'mechanical_equipment',int(DB.BuiltInCategory.OST_ElectricalEquipment):'electrical_equipment',int(DB.BuiltInCategory.OST_PlumbingFixtures):'plumbing_fixture',int(DB.BuiltInCategory.OST_Stairs):'stairs',int(DB.BuiltInCategory.OST_Ramps):'ramp',int(DB.BuiltInCategory.OST_Ceilings):'ceiling'}
-    return mapping.get(value,'other_model_element')
+    kind=mapping.get(value,'other_model_element')
+    if kind=='other_model_element':
+        try:
+            label=(element.Symbol.Family.Name+' '+revit.query.get_name(element)).lower()
+            if re.search(r'rolar|enrol|roll.?up|roller.?shutter|rolling.?door',label):return 'special_opening'
+        except Exception:pass
+    return kind
 
 def level_ref(element,doc):
     reference=resolve_ref(doc,element.LevelId)
@@ -220,6 +228,9 @@ def serialize_element(element,doc,transform,detailed):
         except Exception:pass
         try:result['instanceTransform']=transform_data(element.GetTransform());result['isMirrored']=element.Mirrored
         except Exception:pass
+        if kind=='special_opening':
+            result['widthM']=dimensions.get('widthM');result['heightM']=dimensions.get('heightM')
+            result['openingNote']='Abertura especial: '+(result.get('familyName') or result.get('name') or '')+'. Revisar tipo e medidas no LAC.'
         if kind in ('door','window'):
             result['widthM']=family_length(element,DB.BuiltInParameter.DOOR_WIDTH if kind=='door' else DB.BuiltInParameter.WINDOW_WIDTH)
             result['heightM']=family_length(element,DB.BuiltInParameter.DOOR_HEIGHT if kind=='door' else DB.BuiltInParameter.WINDOW_HEIGHT)
@@ -341,8 +352,12 @@ def main():
         if not selected:return
         selected_levels=[choices[label] for label in selected]
     selected_ids={str(level.Id.Value) for level in selected_levels}
-    detail=forms.ask_for_one_item(['Detalhado (inclui parametros e materiais)','Essencial'],default='Detalhado (inclui parametros e materiais)',prompt='Detalhamento do arquivo para analise',title='Exportar Revit para LAC')
+    detail=forms.ask_for_one_item(['Detalhado (inclui parametros e materiais)','Essencial'],default='Essencial',prompt='Detalhamento do arquivo para analise',title='Exportar Revit para LAC')
     if not detail:return
+    extras=forms.SelectFromList.show(['Vinculos / CAD / nuvens (referencia leve, sem percorrer conteudo)','Modelos genericos e nao identificados'],title='Conteudo opcional: marque o que deseja incluir',button_name='Continuar',multiselect=True)
+    if extras is None:return
+    include_links=any(value.startswith('Vinculos') for value in extras)
+    include_generic=any(value.startswith('Modelos') for value in extras)
     name=re.sub(r'[<>:"/\\|?*]','_',doc.Title)
     path=forms.save_file(file_ext='json',default_name='Revit-LAC-'+name+'.json')
     if not path:return
@@ -359,7 +374,8 @@ def main():
     for grid in DB.FilteredElementCollector(doc).OfClass(DB.Grid):
         try:data['grids'].append(dict(element_ref(grid),name=revit.query.get_name(grid),curve=curve_data(grid.Curve,transform)))
         except Exception as error:data['warnings'].append('Eixo {0}: {1}'.format(grid.Id.Value,error))
-    elements=[element for element in DB.FilteredElementCollector(doc).WhereElementIsNotElementType().WhereElementIsViewIndependent() if model_candidate(element)]
+    data['scope'].update({'includeLinks':include_links,'includeGeneric':include_generic})
+    elements=[element for element in DB.FilteredElementCollector(doc).WhereElementIsNotElementType().WhereElementIsViewIndependent() if model_candidate(element,include_links,include_generic)]
     data['unplacedRooms']=[]
     used_types=set();used_materials=set();skipped=0
     with forms.ProgressBar(title='Exportando {value}/{max_value}',cancellable=True,step=20) as progress:
@@ -372,7 +388,10 @@ def main():
                 if isinstance(element,DB.SpatialElement) and element.Location is None:
                     data['unplacedRooms'].append(dict(element_ref(element),name=revit.query.get_name(element),level=level,reason='not_placed'))
                     continue
-                record=serialize_element(element,doc,transform,detail.startswith('Detalhado'))
+                if element.GetType().Name in ('ImportInstance','RevitLinkInstance','PointCloudInstance'):
+                    record=dict(element_ref(element),kind='external_reference',name=revit.query.get_name(element),level=level,boundingBox=box_data(element,transform),issues=['Referencia leve: conteudo vinculado nao percorrido.'])
+                    record['class']=element.GetType().FullName
+                else:record=serialize_element(element,doc,transform,detail.startswith('Detalhado'))
                 data['elements'].append(record)
                 if record.get('type'):used_types.add(record['type']['elementId'])
                 for material in record.get('materials',[]):

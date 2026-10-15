@@ -21,7 +21,7 @@ export default function RevitIntegrationPanel({project,projects,onChange,onImpor
   if(file.size>50*1024*1024)throw new Error('Arquivo acima de 50 MB. Exporte por pavimento ou use modo Essencial.')
   const raw=JSON.parse(await file.text())
   const exchange: LacExchange=raw.format==='lac-exchange'?raw:createLacExchange(importRevitInventory(raw))
-  if(raw.format==='revit-lac-exchange')exchange.syncMetadata.complete=raw.scope?.allLevels!==false
+  if(raw.format==='revit-lac-exchange')exchange.syncMetadata.complete=raw.scope?.allLevels!==false&&raw.scope?.includeLinks!==false&&raw.scope?.includeGeneric!==false
   const previous=projects.find(p=>p.id===exchange.project.lacId||p.bim?.sourceDocumentId===exchange.project.sourceDocumentId&&!!p.bim?.sourceDocumentId)
   if(previous?.bim?.pendingBaseline&&!previous.bim.baseline)exchange.syncMetadata.complete=false
   if(raw.format==='revit-lac-exchange'&&previous){

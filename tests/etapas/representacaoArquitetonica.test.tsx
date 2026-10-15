@@ -43,7 +43,7 @@ describe('Representação arquitetônica preserva os dados de campo',()=>{
   r.openings[1].offsetM=.6;expect(wallElevationData(r,r.walls[0].id)!.warnings.length).toBeGreaterThan(0);expect(wallElevationData(r,r.walls[0].id)!.difference).toBeGreaterThan(0)
  })
  it('cotas de ambientes coincidentes procuram faixas distintas sem sobreposição de texto',()=>{
-  const a=roomFrom('Sala',[4,3,4,3]),b=roomFrom('Cozinha',[4,3,4,3]),source=surveyDimensions([{shape:buildPlanRoom(a),placement:{roomId:a.id,floorId:a.floorId,x:0,y:0,rotation:45}},{shape:buildPlanRoom(b),placement:{roomId:b.id,floorId:b.floorId,x:0,y:0,rotation:45}}],.1,n=>`${n} m`),dims=[...layoutDimensions(source.requests,source.obstacles,.1).values()]
+  const a=roomFrom('Sala',[4,3,4,3]),b=roomFrom('Cozinha',[4,3,4,3]),source=surveyDimensions([{shape:buildPlanRoom(a),placement:{roomId:a.id,floorId:a.floorId,x:0,y:0,rotation:45}},{shape:buildPlanRoom(b),placement:{roomId:b.id,floorId:b.floorId,x:0,y:0,rotation:45}}],.1,n=>`${n} m`,{all:true}),dims=[...layoutDimensions(source.requests,source.obstacles,.1).values()]
   expect(dims).toHaveLength(8);expect(dims.every(d=>!d.conflict)).toBe(true)
   for(let i=0;i<dims.length;i++)for(let j=i+1;j<dims.length;j++)expect(overlaps(dims[i].box,dims[j].box)).toBe(false)
  })

@@ -40,10 +40,15 @@ class Tests(unittest.TestCase):
         scope=load();scope['DB'].CategoryType=types.SimpleNamespace(Model='model');scope['DB'].View=type('View',(),{})
         def element(name):
             return types.SimpleNamespace(Category=types.SimpleNamespace(CategoryType='model'),ViewSpecific=False,GetType=lambda:types.SimpleNamespace(Name=name))
-        for name in ['Material','AppearanceAssetElement','PropertySetElement','Sketch','PipeSegment','LegendComponent']:
+        for name in ['Material','AppearanceAssetElement','PropertySetElement','Sketch','PipeSegment','LegendComponent','ImportInstance','RevitLinkInstance','PointCloudInstance']:
             self.assertFalse(scope['model_candidate'](element(name)),name)
         for name in ['Wall','FamilyInstance','Room','Floor','RoofBase']:
             self.assertTrue(scope['model_candidate'](element(name)),name)
+        self.assertTrue(scope['model_candidate'](element('ImportInstance'),include_links=True))
+        scope['classify']=lambda e:'other_model_element'
+        self.assertFalse(scope['model_candidate'](element('FamilyInstance'),include_generic=False))
+        scope['classify']=lambda e:'special_opening'
+        self.assertTrue(scope['model_candidate'](element('FamilyInstance'),include_generic=False))
 
     def test_streaming_json_preserves_content(self):
         import io,json

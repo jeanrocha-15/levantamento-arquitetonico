@@ -79,5 +79,5 @@ assert.throws(() => readSnapshot({ ...migrated, data: { ...migrated.data, projec
 console.log('Etapa 12: conversão/parsing, unidades em formulários/SVG, medidas originais, migração, persistência, espessura/tipo e IDs estáveis sem reutilização OK.')
 assert.equal(displayMeasurementInput(2.8, 'm'), '2,80')
 assert.equal(displayMeasurementInput(2.8, 'mm'), '2800')
-assert.equal(displayMeasurementInput(2.8123456789, 'm'), '2,8123456789')
+assert.equal(displayMeasurementInput(2.8123456789, 'm'), '2,81')
 assert.equal(displayMeasurementInput(null, 'm'), '')

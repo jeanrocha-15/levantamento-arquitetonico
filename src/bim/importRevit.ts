@@ -1,12 +1,12 @@
 import {createRoom,wallLabel} from '../domain'
 import type {Project,Room,RoomPlacement} from '../models'
 import {ensureProjectMetadata} from '../projectMetadata'
-import type {BimState,XYZ,PhysicalElement} from './types'
+import type {BimState,XYZ,PhysicalElement,PhysicalOpening} from './types'
 type Ref={uniqueId?:string;elementId?:string}
 type Curve={isStraight?:boolean;hostStart?:XYZ;hostEnd?:XYZ;hostSamples?:XYZ[];start?:XYZ;end?:XYZ}
 type Boundary={element?:Ref;curve:Curve}
 interface SourceElement extends Ref {lacSurvey?:Room;lacId?:string;name?:string;kind:string;level?:Ref;host?:Ref;room?:Ref;hostPosition?:XYZ;position?:XYZ;axis?:Curve;boundaryLoops?:Boundary[][];areaM2?:number;unboundedHeightM?:number;thicknessM?:number;unconnectedHeightM?:number;rotationDegrees?:number;widthM?:number;heightM?:number;sillHeightM?:number;category?:{name?:string};familyName?:string;boundingBox?:{hostCorners?:XYZ[]};dimensions?:{widthM?:number;depthM?:number;heightM?:number};phase?:Ref;type?:Ref;parameters?:{name:string;value?:number;unit?:string}[]}
-export interface RevitInventory {format:'revit-lac-exchange';schemaVersion:1;units:'m';source:{documentId:string;title:string;lacProjectId?:string;linkInstance?:Ref};levels:(Ref&{lacId?:string;name:string;elevationM:number;hostOrigin?:XYZ})[];elements:SourceElement[];types?:(Ref&{parameters?:{name:string;value?:number;unit?:string}[]})[];unplacedRooms?:unknown[];scope?:{allLevels?:boolean};warnings?:string[]}
+export interface RevitInventory {format:'revit-lac-exchange';schemaVersion:1;units:'m';source:{documentId:string;title:string;lacProjectId?:string;linkInstance?:Ref};levels:(Ref&{lacId?:string;name:string;elevationM:number;hostOrigin?:XYZ})[];elements:SourceElement[];types?:(Ref&{parameters?:{name:string;value?:number;unit?:string}[]})[];unplacedRooms?:unknown[];scope?:{allLevels?:boolean;includeLinks?:boolean;includeGeneric?:boolean};warnings?:string[]}
 const finite=(x:unknown):x is number=>typeof x==='number'&&Number.isFinite(x)
 const validPoint=(x:unknown):x is XYZ=>Array.isArray(x)&&x.length===3&&x.every(finite)
 export const signedArea=(points:XYZ[])=>points.reduce((a,p,i)=>{const q=points[(i+1)%points.length];return a+p[0]*q[1]-q[0]*p[1]},0)/2
@@ -51,30 +51,45 @@ export function importRevitInventory(raw:unknown):Project {
     floor.rooms.push(room);project.roomPlacements!.push(placement);placements.set(rid,placement);roomGlobal.set(rid,edges.map(s=>s.start));roomEdges.set(rid,edges)
   }
   const rooms=project.floors.flatMap(f=>f.rooms)
-  let door=0,window=0
-  for(const e of d.elements.filter(e=>e.kind==='door'||e.kind==='window')){
-    const oid=key(e),host=bim.physicalWalls.find(w=>w.revitUniqueId===uid(e.host)),pos=e.hostPosition??e.position
+  let door=0,window=0,gap=0
+  for(const e of d.elements.filter(e=>e.kind==='door'||e.kind==='window'||e.kind==='special_opening'||/rolar|enrol|roll.?up|roller.?shutter|rolling.?door/i.test(`${e.familyName??''} ${e.name??''}`))){
+    const oid=key(e),pos=e.hostPosition??e.position
+    let host=bim.physicalWalls.find(w=>w.revitUniqueId===uid(e.host))
+    if(!host&&validPoint(pos)){const nearby=bim.physicalWalls.filter(w=>{const dx=w.end[0]-w.start[0],dy=w.end[1]-w.start[1],len=Math.hypot(dx,dy),along=((pos[0]-w.start[0])*dx+(pos[1]-w.start[1])*dy)/(len||1),distance=Math.abs((pos[0]-w.start[0])*dy-(pos[1]-w.start[1])*dx)/(len||1);return along>=0&&along<=len&&distance<=(w.thickness??0)/2+.05&&pos[2]>=w.start[2]-.1&&pos[2]<=w.start[2]+(w.height??3)+.1});if(nearby.length===1)host=nearby[0]}
     if(!oid||!host||!validPoint(pos)){bim.warnings.push(`${e.name}: abertura sem parede hospedeira/posição; preservada como externa.`);continue}
-    const type=e.kind as 'door'|'window',physical={lacId:oid,revitUniqueId:e.uniqueId,hostWallId:host.lacId,levelId:floorOf(e)?.id??host.baseLevelId,type,position:pos,width:e.widthM??null,height:e.heightM??null,sill:e.sillHeightM??(type==='door'?0:null),roomRefs:[] as {roomId:string;openingId:string}[]}
-    const label=(type==='door'?'P':'J')+String(type==='door'?++door:++window).padStart(2,'0')
-    for(const room of rooms){const edges=roomEdges.get(room.id)!;for(let i=0;i<edges.length;i++){const s=edges[i];if(s.host!==uid(e.host))continue;const length=room.walls[i].lengthM!,along=((pos[0]-s.start[0])*(s.end[0]-s.start[0])+(pos[1]-s.start[1])*(s.end[1]-s.start[1]))/length,offset=along-(e.widthM??0)/2;if(offset<-.001||along+(e.widthM??0)/2>length+.001)continue;const id=`${oid}:room:${room.id}`;room.openings.push({id,lacId:id,revitUniqueId:e.uniqueId,physicalOpeningId:oid,label,wallId:room.walls[i].id,type,referenceCornerId:room.corners[(i+edges.length-1)%edges.length].id,offsetM:Math.max(0,offset),widthM:e.widthM??null,heightM:e.heightM??null,sillHeightM:physical.sill});physical.roomRefs.push({roomId:room.id,openingId:id});break}}
+    const special=e.kind==='special_opening'||/rolar|enrol|roll.?up|roller.?shutter|rolling.?door/i.test(`${e.familyName??''} ${e.name??''}`)
+    const type=special?'gap':e.kind as 'door'|'window',note=special?`Abertura especial Revit: ${e.familyName??e.name??e.kind}. Representação provisória; revisar tipo e dimensões.`:undefined,physical:PhysicalOpening={lacId:oid,revitUniqueId:e.uniqueId,hostWallId:host.lacId,levelId:floorOf(e)?.id??host.baseLevelId,note,type,position:pos,width:e.widthM??e.dimensions?.widthM??null,height:e.heightM??e.dimensions?.heightM??null,sill:e.sillHeightM??(type==='door'?0:null),roomRefs:[] as {roomId:string;openingId:string}[]}
+    const label=(type==='door'?'P':type==='window'?'J':'V')+String(type==='door'?++door:type==='window'?++window:++gap).padStart(2,'0')
+    for(const room of rooms){
+      const edges=roomEdges.get(room.id)!,candidates=edges.flatMap((s,i)=>{
+        if(s.host!==host.revitUniqueId)return []
+        const length=room.walls[i].lengthM!,along=((pos[0]-s.start[0])*(s.end[0]-s.start[0])+(pos[1]-s.start[1])*(s.end[1]-s.start[1]))/length,width=physical.width??0
+        const overlap=Math.min(length,along+width/2)-Math.max(0,along-width/2)
+        return overlap>1e-6||(!width&&along>=0&&along<=length)?[{i,offset:along-width/2,overlap}]:[]
+      }).sort((a,b)=>b.overlap-a.overlap)
+      const chosen=candidates[0];if(!chosen)continue
+      const {i,offset}=chosen,id=`${oid}:room:${room.id}`
+      room.openings.push({id,lacId:id,revitUniqueId:e.uniqueId,physicalOpeningId:oid,note,label,wallId:room.walls[i].id,type,referenceCornerId:room.corners[(i+edges.length-1)%edges.length].id,offsetM:offset,widthM:physical.width,heightM:physical.height,sillHeightM:physical.sill})
+      physical.roomRefs.push({roomId:room.id,openingId:id})
+    }
     if(physical.roomRefs.length===2){const [a,b]=physical.roomRefs;for(const [from,to] of [[a,b],[b,a]]){const o=rooms.find(r=>r.id===from.roomId)!.openings.find(o=>o.id===from.openingId)!;o.connectedRoomId=to.roomId;o.connectedOpeningId=to.openingId}project.spatialConnections!.push({id:oid+':connection',type:'opening',a:{roomId:a.roomId,elementId:a.openingId},b:{roomId:b.roomId,elementId:b.openingId}})}
     bim.openings.push(physical)
   }
   const converted=new Set([...rooms.map(r=>r.revitUniqueId),...bim.physicalWalls.map(w=>w.revitUniqueId),...bim.openings.map(o=>o.revitUniqueId)])
-  const aux=new Set(['Autodesk.Revit.DB.ModelLine','Autodesk.Revit.DB.Material','Autodesk.Revit.DB.AppearanceAssetElement'])
+  const aux=new Set(['Autodesk.Revit.DB.ModelLine','Autodesk.Revit.DB.Material','Autodesk.Revit.DB.AppearanceAssetElement','Autodesk.Revit.DB.ImportInstance','Autodesk.Revit.DB.RevitLinkInstance','Autodesk.Revit.DB.PointCloudInstance'])
   for(const e of d.elements){
     const eid=key(e);if(!eid)throw new Error('Elemento sem UniqueId estável.')
     if(converted.has(e.uniqueId)&&!(e.kind==='room'&&(e.boundaryLoops?.length??0)>1))continue
     const source=e as SourceElement&{class?:string}
-    if(aux.has(source.class??'')||['Componentes de legenda','Câmeras','Layout do eixo do sistema cortina'].includes(e.category?.name??'')){bim.warnings.push(`${e.name??eid}: registro auxiliar não físico, mantido no arquivo original.`);continue}
+    if((aux.has(source.class??'')&&!(d.scope?.includeLinks&&e.kind==='external_reference'))||['Componentes de legenda','Câmeras','Layout do eixo do sistema cortina'].includes(e.category?.name??'')){bim.warnings.push(`${e.name??eid}: registro auxiliar não físico, mantido no arquivo original.`);continue}
     if(e.kind==='room'&&(e.areaM2??0)<=0)continue
     const box=e.boundingBox?.hostCorners?.filter(validPoint)??[],pos=e.hostPosition??e.position??box[0]
-    const level=floorOf(e),category=({'furniture':'Furniture',equipment:'Equipment',structural_column:'Column',structural_framing:'Beam',plumbing_fixture:'Equipment',door:'Door',window:'Window'} as Record<string,string>)[e.kind]??'GenericModel'
+    const level=floorOf(e),category=({'furniture':'Furniture',equipment:'Equipment',mechanical_equipment:'Equipment',electrical_equipment:'Equipment',column:'Column',structural_column:'Column',structural_framing:'Beam',plumbing_fixture:'Equipment',door:'Door',window:'Window'} as Record<string,string>)[e.kind]??'GenericModel'
     const representation=e.axis?.hostSamples??(e.axis?.hostStart&&e.axis?.hostEnd?[e.axis.hostStart,e.axis.hostEnd]:box)
     const record:PhysicalElement={lacId:e.kind==='room'?eid+':boundary-reference':eid,revitUniqueId:e.uniqueId,category,type:e.familyName??e.name??e.kind,levelId:level?.id??'',position:validPoint(pos)?pos:[0,0,0],rotation:e.rotationDegrees??0,hostId:uid(e.host)?key(byUid.get(uid(e.host)!)??e.host!):undefined,editable:false,representation,source:e,issue:'Representação simplificada do Revit; edição limitada.'}
     if(!validPoint(pos)){record.issue='Sem posição disponível; consulte os Dados Revit.';bim.warnings.push(`${record.type}: sem posição disponível.`)}
-    const candidates=rooms.filter(r=>(!level||r.floorId===level.id)&&inside(record.position,roomGlobal.get(r.id)!))
+    const containing=rooms.filter(r=>inside(record.position,roomGlobal.get(r.id)!)),sameLevel=containing.filter(r=>!level||r.floorId===level.id)
+    const candidates=sameLevel.length?sameLevel:containing.filter(r=>{const z=project.floors.find(f=>f.id===r.floorId)?.elevation??0,low=box.length?Math.min(...box.map(p=>p[2])):record.position[2],high=box.length?Math.max(...box.map(p=>p[2])):record.position[2];return low<=z+.1&&high>=z-.1})
     const room=candidates.length===1?candidates[0]:undefined
     const parameters=[...(e.parameters??[]),...(d.types?.find(t=>t.uniqueId===e.type?.uniqueId)?.parameters??[])]
     const dim=(names:string[])=>parameters.find(p=>names.includes(p.name)&&p.unit==='m'&&finite(p.value)&&p.value!>0)?.value

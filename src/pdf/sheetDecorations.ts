@@ -5,8 +5,8 @@ import type { SheetLayout } from './sheetSettings'
 import type { RoomObject } from '../models'
 export function objectLayerVisible(object:RoomObject,layers:PdfLayers) {return object.category==='structural'?layers.structural && (object.structuralKind==='beam'?layers.beams!==false:layers.columns!==false):object.category==='equipment'?layers.equipment:layers.objects}
 import type { SheetOption } from './sheetLayout'
-export interface PdfLayers {walls:boolean;ids:boolean;names:boolean;measurements:boolean;openings:boolean;objects:boolean;equipment:boolean;structural:boolean;beams?:boolean;columns?:boolean;annotations?:boolean}
-export const defaultPdfLayers:PdfLayers={walls:true,ids:true,names:true,measurements:true,openings:true,objects:true,equipment:true,structural:true,beams:true,columns:true,annotations:true}
+export interface PdfLayers {walls:boolean;ids:boolean;names:boolean;measurements:boolean;openings:boolean;objects:boolean;equipment:boolean;structural:boolean;beams?:boolean;columns?:boolean;annotations?:boolean;allDimensions?:boolean}
+export const defaultPdfLayers:PdfLayers={walls:true,ids:true,names:true,measurements:true,openings:true,objects:true,equipment:true,structural:true,beams:true,columns:true,annotations:true,allDimensions:false}
 export function wrapText(text:string,width:number,size=3) {const lines:string[]=[];let line='';for(const word of text.replace(/\r/g,'').split(/\s+/)){if(textWidthMm(line?line+' '+word:word,size)<=width){line=line?line+' '+word:word;continue}if(line)lines.push(line);line='';for(const char of word){if(textWidthMm(line+char,size)>width){lines.push(line);line=''}line+=char}}if(line)lines.push(line);return lines}
 export function scaleBar(scale:number,maxWidthMm=65) {const maximum=maxWidthMm*scale/1000,order=10**Math.floor(Math.log10(maximum/3)),step=[1,2,5,10].map(n=>n*order).filter(n=>n*3<=maximum).at(-1)??order/10;return {stepM:step,totalM:step*3,widthMm:mmOnPaper(step*3,scale)}}
 export function drawTitleBlock(page:PdfPage,{project,floor,title,option,date=new Date(),responsible,notes=[],layout}:{project:Project;floor?:Floor;title:string;option:SheetOption;date?:Date;responsible?:string;notes?:string[];layout?:SheetLayout}) {
@@ -30,7 +30,8 @@ export function drawTitleBlock(page:PdfPage,{project,floor,title,option,date=new
 
 // Separate captions avoid concatenated labels extending across small objects.
 export function drawObjectCaption(page:PdfPage,center:{x:number;y:number},labels:string[],widthMm:number,key?:string,rotate=0) {
- const size=2,lines=labels.flatMap((label,sourceIndex)=>label?wrapText(label,Math.max(12,widthMm-2),size).map((text,lineIndex)=>({text,id:`${sourceIndex}:${lineIndex}`})):[])
+ const visible=widthMm<12?[labels[0]??'']:labels
+ const size=2,lines=visible.flatMap((label,sourceIndex)=>label?wrapText(label,Math.max(12,widthMm-2),size).map((text,lineIndex)=>({text,id:`${sourceIndex}:${lineIndex}`})):[])
  const top=center.y-(lines.length-1)*1.25+.7
  lines.forEach((line,index)=>page.text({x:center.x,y:top+index*2.5},line.text,size,{align:'center',gray:.3,key:key?`${key}:line:${line.id}`:undefined,rotate}))
 }

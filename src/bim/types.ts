@@ -2,7 +2,7 @@ import type {Room, RoomPlacement, SpatialConnection} from '../models'
 export interface Identity {lacId?:string; revitUniqueId?:string}
 export type XYZ=[number,number,number]
 export interface PhysicalWall {lacId:string;revitUniqueId?:string;start:XYZ;end:XYZ;curve?:unknown;thickness:number|null;baseLevelId:string;height:number|null;topLevelId?:string;material?:string;roomIds:string[];surveyRefs:{roomId:string;wallId:string}[]}
-export interface PhysicalOpening {lacId:string;revitUniqueId?:string;hostWallId:string;levelId:string;type:'door'|'window'|'gap';position:XYZ;width:number|null;height:number|null;sill:number|null;roomRefs:{roomId:string;openingId:string}[]}
+export interface PhysicalOpening {note?:string;lacId:string;revitUniqueId?:string;hostWallId:string;levelId:string;type:'door'|'window'|'gap';position:XYZ;width:number|null;height:number|null;sill:number|null;roomRefs:{roomId:string;openingId:string}[]}
 export interface PhysicalElement {lacId:string;revitUniqueId?:string;category:string;type:string;levelId:string;position:XYZ;rotation:number;width?:number;depth?:number;height?:number;hostId?:string;roomId?:string;objectId?:string;editable:false|'limited';representation:XYZ[];source?:unknown;issue?:string}
 export interface ExchangeLevel {lacId:string;name:string;elevation:number;revitUniqueId?:string}
 export interface ExchangeRoom {lacId:string;revitUniqueId?:string;levelId:string;name:string;boundary:XYZ[];survey:Room;placement:RoomPlacement}

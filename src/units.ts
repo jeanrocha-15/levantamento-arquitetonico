@@ -21,17 +21,16 @@ export function inputMeasurement(value: number | null | undefined, unit: Measure
   return value == null || !Number.isFinite(value) ? '' : String(toDisplay(value, unit))
 }
 // Em metros, rótulos seguem o padrão técnico com duas casas ("4,20 m");
-// casas extras medidas em campo continuam visíveis.
+// A precisão visual não altera o valor armazenado ou o texto de edição.
 export function formatMeasurement(value: number | null | undefined, unit: MeasurementUnit, suffix = true): string {
   if (value == null || !Number.isFinite(value)) return '?'
-  const text = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: unit === 'm' ? 2 : 0, maximumFractionDigits: 6 }).format(toDisplay(value, unit))
+  const text = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: unit === 'm' ? 2 : 0, maximumFractionDigits: unit === 'm' ? 2 : unit === 'cm' ? 1 : 0 }).format(toDisplay(value, unit))
   return suffix ? `${text} ${unit}` : text
 }
 // Texto exibido no campo fora de edição: vírgula decimal e, em metros, duas casas ("2,80").
 // Sem separador de milhar (para "2800" mm continuar legível pelo parser). Nunca altera o valor salvo:
-// se a formatação perder precisão, mostra o número completo.
+// O número completo aparece somente durante a edição.
 export function displayMeasurementInput(value: number | null | undefined, unit: MeasurementUnit): string {
   if (value == null || !Number.isFinite(value)) return ''
-  const text = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: unit === 'm' ? 2 : 0, maximumFractionDigits: 6, useGrouping: false }).format(toDisplay(value, unit))
-  return Object.is(parseMeasurement(text, unit), value) ? text : String(toDisplay(value, unit)).replace('.', ',')
+  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: unit === 'm' ? 2 : 0, maximumFractionDigits: unit === 'm' ? 2 : unit === 'cm' ? 1 : 0, useGrouping: false }).format(toDisplay(value, unit))
 }

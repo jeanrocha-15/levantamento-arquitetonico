@@ -15,7 +15,7 @@ import type { SheetLayout,TitleBlockField } from './pdf/sheetSettings'
 import { SHEETS,SCALES,paperSize,orientationNames } from './pdf/sheetLayout'
 import type { SheetSize,Orientation,SheetOption } from './pdf/sheetLayout'
 import type { PdfLayers } from './pdf/sheetDecorations'
-const layerNames:Record<keyof PdfLayers,string>={walls:'Paredes',ids:'IDs',names:'Nomes de ambientes/elementos',measurements:'Medidas',openings:'Portas/janelas/vãos',objects:'Objetos e móveis',equipment:'Equipamentos',structural:'Elementos estruturais',beams:'Vigas',columns:'Pilares',annotations:'Ângulos, diagonais e anotações'}
+const layerNames:Record<keyof PdfLayers,string>={allDimensions:'Todas as cotas (inclui repetições e recortes)',walls:'Paredes',ids:'IDs',names:'Nomes de ambientes/elementos',measurements:'Medidas',openings:'Portas/janelas/vãos',objects:'Objetos e móveis',equipment:'Equipamentos',structural:'Elementos estruturais',beams:'Vigas',columns:'Pilares',annotations:'Ângulos, diagonais e anotações'}
 const fieldNames:Record<TitleBlockField,string>={title:'Título',project:'Projeto',floor:'Pavimento',date:'Data',scale:'Escala',sheet:'Folha',responsible:'Responsável',scaleBar:'Barra de escala'}
 const gray=(n=0)=>`rgb(${Math.round(n*255)},${Math.round(n*255)},${Math.round(n*255)})`
 function Primitive({item,selected}:{item:PdfSceneItem;selected:string}) {

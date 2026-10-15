@@ -10,12 +10,13 @@ import { Movable, useOffsetLookup } from './sketchDrag'
 import { dimensionLine, insideNormal } from './dimensions'
 import type { buildOpeningLayout, LabelBox } from './openings'
 
-export default function OpeningSketch({ layout, geometry, extraReservations = [], onSelect, showDimensions = true, mode='architectural', referenceFace='internal' }: { layout: ReturnType<typeof buildOpeningLayout>; geometry: ReturnType<typeof buildPerimeter>; extraReservations?: LabelBox[]; onSelect?: (openingId: string) => void; showDimensions?: boolean;mode?:'simplified'|'architectural';referenceFace?:'internal'|'external' }) {
+export default function OpeningSketch({ compact=false, layout, geometry, extraReservations = [], onSelect, showDimensions = true, mode='architectural', referenceFace='internal' }: { compact?:boolean; layout: ReturnType<typeof buildOpeningLayout>; geometry: ReturnType<typeof buildPerimeter>; extraReservations?: LabelBox[]; onSelect?: (openingId: string) => void; showDimensions?: boolean;mode?:'simplified'|'architectural';referenceFace?:'internal'|'external' }) {
   const { unit, format } = useMeasurements()
   const labels = useMemo(() => placeOpeningLabels(layout.placements, geometry.project, extraReservations, unit), [layout, geometry, extraReservations, unit])
   const offsetOf = useOffsetLookup()
   const center = useMemo(() => { const points = geometry.segments.map(segment => geometry.project(segment.start)); return points.length ? { x: points.reduce((t, p) => t + p.x, 0) / points.length, y: points.reduce((t, p) => t + p.y, 0) / points.length } : { x: 220, y: 170 } }, [geometry])
-  return <g className="svg-openings" pointerEvents="none">{labels.map(({ placement, x, y, anchor, box }) => {
+  const shownLabels=compact?layout.placements.map(placement=>{const a=geometry.project(placement.start),b=geometry.project(placement.end),length=Math.hypot(b.x-a.x,b.y-a.y)||1,x=(a.x+b.x)/2-(b.y-a.y)/length*10,y=(a.y+b.y)/2+(b.x-a.x)/length*10;return {placement,x,y,anchor:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},box:{x:x-25,y:y-5,width:50,height:12}}}):labels
+  return <g className="svg-openings" pointerEvents="none">{shownLabels.map(({ placement, x, y, anchor, box }) => {
     const offset = offsetOf(`opening:${placement.opening.id}`)
     const { opening, reference } = placement
     const start = geometry.project(placement.start), end = geometry.project(placement.end)
@@ -36,9 +37,9 @@ export default function OpeningSketch({ layout, geometry, extraReservations = []
         return <g className="svg-dimension"><line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>{line.ticks.map(([a, b], index) => <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>)}<text x={line.text.x} y={line.text.y} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${line.angle} ${line.text.x} ${line.text.y})`}>{format(opening.offsetM)}</text></g>
       })()}
 
-      <line className="opening-leader" x1={anchor.x} y1={anchor.y} x2={x + offset.dx} y2={y + 4 + offset.dy}/>
+      {!compact&&<line className="opening-leader" x1={anchor.x} y1={anchor.y} x2={x + offset.dx} y2={y + 4 + offset.dy}/>}
       <circle className="opening-anchor" cx={anchor.x} cy={anchor.y} r="2"/>
-      <Movable id={`opening:${opening.id}`} angle={lineRotation(start,end)} box={box} title={opening.label}><text x={x} y={y} textAnchor="middle" className="opening-label"><tspan x={x} className="opening-code">{opening.label}</tspan><tspan x={x} dy="12">{dimensions}</tspan>{opening.type === 'window' && <tspan x={x} dy="12">P={format(opening.sillHeightM)}</tspan>}<tspan x={x} dy="12" className="opening-reference">{referenceText}</tspan></text></Movable>
+      <Movable id={`opening:${opening.id}`} angle={lineRotation(start,end)} box={box} title={opening.label}><text x={x} y={y} textAnchor="middle" className="opening-label"><tspan x={x} className="opening-code">{opening.label}</tspan>{!compact&&<tspan x={x} dy="12">{dimensions}</tspan>}{!compact&&opening.type === 'window' && <tspan x={x} dy="12">P={format(opening.sillHeightM)}</tspan>}{!compact&&<tspan x={x} dy="12" className="opening-reference">{referenceText}</tspan>}</text></Movable>
     </g>
   })}</g>
 }

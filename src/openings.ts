@@ -48,19 +48,20 @@ export function buildOpeningLayout(perimeter: Perimeter, walls: Wall[], corners:
       if (!positive(opening.widthM)) check.messages.push('Informe uma largura positiva para representar a abertura.')
       if (!positive(opening.heightM)) check.messages.push('Altura ainda não informada ou inválida.')
       if (opening.type === 'window' && !nonnegative(opening.sillHeightM)) check.messages.push('Peitoril ainda não informado ou inválido.')
-      if (!nonnegative(opening.offsetM)) check.messages.push('Informe uma distância maior ou igual a zero, do canto até a borda mais próxima da abertura.')
+      const importedPosition=!!opening.physicalOpeningId&&opening.offsetM!=null&&Number.isFinite(opening.offsetM)
+      if (!nonnegative(opening.offsetM)&&!importedPosition) check.messages.push('Informe uma distância maior ou igual a zero, do canto até a borda mais próxima da abertura.')
       if (!reference) check.messages.push('Selecione um canto que pertença à parede atual. A referência original foi preservada.')
       if (!segment.measured) check.messages.push('Informe o comprimento da parede para posicionar a abertura.')
-      if (!reference || !segment.measured || !positive(opening.widthM) || !nonnegative(opening.offsetM)) return
+      if (!reference || !segment.measured || !positive(opening.widthM) || (!nonnegative(opening.offsetM)&&!importedPosition)) return
       const length = segment.wall.lengthM!
-      const fromM = reference.endpoint === 'start' ? opening.offsetM : length - opening.offsetM - opening.widthM
+      const fromM = reference.endpoint === 'start' ? opening.offsetM! : length - opening.offsetM! - opening.widthM
       const toM = fromM + opening.widthM
       if (fromM < -geometryTolerance.numericalEpsilon || toM - length > geometryTolerance.numericalEpsilon) {
         check.messages.push('A abertura ultrapassa os limites da parede. Verifique largura e distância; os valores foram preservados.')
-        return
+        if(!opening.physicalOpeningId||toM<=0||fromM>=length)return
       }
       check.drawable = true
-      placements.push({ opening, wall: segment.wall, fromM, toM, start: pointAt(fromM), end: pointAt(toM), direction: segment.direction, reference, referencePoint: reference.endpoint === 'start' ? segment.start : segment.end, nearPoint: pointAt(reference.endpoint === 'start' ? fromM : toM) })
+      placements.push({ opening, wall: segment.wall, fromM, toM, start: pointAt(Math.max(0,fromM)), end: pointAt(Math.min(length,toM)), direction: segment.direction, reference, referencePoint: reference.endpoint === 'start' ? segment.start : segment.end, nearPoint: pointAt(reference.endpoint === 'start' ? fromM : toM) })
     })
     const sorted = [...placements].sort((a, b) => a.fromM - b.fromM)
     sorted.forEach((a, index) => sorted.slice(index + 1).forEach(b => {

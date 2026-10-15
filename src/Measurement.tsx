@@ -17,7 +17,7 @@ export function MeasurementInput({ value, onValue, onFocus, onBlur, ...props }: 
   useEffect(() => { setDraft(current => Object.is(parseMeasurement(current, unit), value) ? current : inputMeasurement(value, unit)) }, [value, unit])
   // Fora de edição, o campo mostra o padrão brasileiro ("2,80"); o texto digitado só é reinterpretado ao editar.
   const shown = !editing && value != null && Number.isFinite(value) && Object.is(parseMeasurement(draft, unit), value) ? displayMeasurementInput(value, unit) : draft
-  return <input {...props} type="text" inputMode="decimal" value={shown} onFocus={event => { if (shown !== draft) setDraft(shown); setEditing(true); onFocus?.(event) }} onBlur={event => { setEditing(false); onBlur?.(event) }} onChange={event => {
+  return <input {...props} type="text" inputMode="decimal" value={shown} onFocus={event => { setEditing(true); onFocus?.(event) }} onBlur={event => { setEditing(false); onBlur?.(event) }} onChange={event => {
     setDraft(event.target.value); onValue(parseMeasurement(event.target.value, unit))
   }}/>
 }
