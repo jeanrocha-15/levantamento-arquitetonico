@@ -2,8 +2,10 @@ import {id} from './domain'
 import type {Project,RoomPlacement} from './models'
 import {buildPlanRoom,floorRooms,worldPoint} from './floorPlan'
 import {buildWallFaces} from './wallFaces'
+import {cornerWallRelationships} from './cornerConnections'
 export interface WallConflict {roomId:string;otherRoomId:string;wallId:string;otherWallId:string;overlapM:number;canUnite:boolean;message:string}
 export function wallConflicts(project:Project,floorId:string,placements:RoomPlacement[]) {
+ const sharedRelationships=[...project.relationships,...cornerWallRelationships({...project,roomPlacements:placements},floorId)]
  const walls=floorRooms(project,floorId).flatMap(room=>{
   const p=placements.find(p=>p.roomId===room.id&&p.floorId===floorId);if(!p)return []
   const segments=buildPlanRoom(room).survey.perimeter.segments
@@ -14,7 +16,7 @@ export function wallConflicts(project:Project,floorId:string,placements:RoomPlac
  for(let i=0;i<walls.length;i++)for(let j=i+1;j<walls.length;j++){
   const a=walls[i],b=walls[j];if(a.room.id===b.room.id)continue
   const same=(ra:string,wa:string,rb:string,wb:string)=>ra===a.room.id&&wa===a.wall.id&&rb===b.room.id&&wb===b.wall.id||ra===b.room.id&&wa===b.wall.id&&rb===a.room.id&&wb===a.wall.id
-  if(project.spatialConnections?.some(c=>c.type==='shared_wall'&&same(c.a.roomId,c.a.wallId??c.a.elementId??'',c.b.roomId,c.b.wallId??c.b.elementId??''))||project.relationships.some(r=>r.type==='shared_wall'&&same(r.sourceRoomId,r.sourceElementId??'',r.targetRoomId,r.targetElementId??''))||[a,b].some((w,k)=>w.wall.sharedWallReference?.roomId===[b,a][k].room.id&&w.wall.sharedWallReference?.wallId===[b,a][k].wall.id))continue
+  if(project.spatialConnections?.some(c=>c.type==='shared_wall'&&same(c.a.roomId,c.a.wallId??c.a.elementId??'',c.b.roomId,c.b.wallId??c.b.elementId??''))||sharedRelationships.some(r=>r.type==='shared_wall'&&same(r.sourceRoomId,r.sourceElementId??'',r.targetRoomId,r.targetElementId??''))||[a,b].some((w,k)=>w.wall.sharedWallReference?.roomId===[b,a][k].room.id&&w.wall.sharedWallReference?.wallId===[b,a][k].wall.id))continue
   const dx=a.end.x-a.start.x,dy=a.end.y-a.start.y,len=Math.hypot(dx,dy),bdx=b.end.x-b.start.x,bdy=b.end.y-b.start.y,blen=Math.hypot(bdx,bdy);if(len<1e-6||blen<1e-6||Math.abs(dx*bdy-dy*bdx)/(len*blen)>.001)continue
   const along=(p:{x:number;y:number})=>((p.x-a.start.x)*dx+(p.y-a.start.y)*dy)/len
   const offset=Math.abs((b.start.x-a.start.x)*dy-(b.start.y-a.start.y)*dx)/len
