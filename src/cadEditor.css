@@ -15,7 +15,7 @@
 .cad-editor .sheet-embedded .sheet-preview-settings{grid-column:2;grid-row:1}.cad-editor .sheet-embedded .sheet-preview-canvas{grid-column:1;grid-row:1}
 .cad-editor.properties-closed .sheet-embedded .sheet-preview-body{grid-template-columns:minmax(0,1fr)}.cad-editor.properties-closed .sheet-embedded .sheet-preview-settings{display:none}
 .cad-editor{height:100dvh;display:flex;flex-direction:column;overflow:clip;background:var(--page);color:var(--ink);--cad-tools-height:82px}
-.cad-editor .workspace-header{display:flex;position:relative;inset:auto;flex:none;padding:8px 16px;min-height:54px;gap:16px;z-index:45;background:var(--header)}
+.cad-editor .workspace-header{display:flex;position:relative;inset:auto;flex:none;padding:5px 12px;min-height:44px;gap:12px;z-index:45;background:var(--header)}
 .cad-editor .workspace-header .lac-brand-symbol{width:34px;height:34px}.cad-editor .lac-brand-text strong{font-size:20px}.cad-editor .lac-brand-text small{display:none}
 .cad-editor .header-context{font-size:12px}.cad-editor .header-actions{gap:5px}.cad-editor .workspace-header button{min-height:30px;padding:5px 9px;border-radius:5px}
 .cad-editor .mobile-navigation,.cad-editor .page-heading{display:none}
@@ -24,9 +24,10 @@
 .cad-ribbon{flex:none;background:var(--surface);border-bottom:1px solid var(--border);z-index:42}
 .cad-ribbon-tabs{display:flex;gap:3px;align-items:center;padding:3px 10px;overflow-x:auto;scrollbar-width:thin}
 .cad-ribbon-tabs button{white-space:nowrap;background:transparent;border:1px solid transparent;color:var(--ink)}
+.cad-editor .cad-ribbon-tabs button{min-height:26px;padding:3px 8px}
 .cad-ribbon-tabs button[aria-pressed=true]{background:var(--page);border-color:var(--border);border-bottom:2px solid var(--accent);font-weight:700}
 .cad-ribbon-tabs .cad-properties-toggle{margin-left:auto;border-color:var(--border)}
-.cad-command-line{display:flex;align-items:center;gap:6px;min-height:40px;padding:4px 12px;border-top:1px solid var(--border);overflow-x:auto}
+.cad-command-line{display:flex;align-items:center;gap:6px;min-height:34px;padding:2px 10px;border-top:1px solid var(--border);overflow-x:auto}
 .cad-command-line>button{white-space:nowrap}.cad-command-category{font-size:11px;font-weight:600;color:var(--muted);padding-right:10px;border-right:1px solid var(--border);white-space:nowrap}
 .cad-command-slot,.cad-command-slot .wall-actions,.cad-command-slot .opening-actions,.cad-command-slot .structural-actions,.cad-command-slot .plan-main-toolbar{display:flex;flex-wrap:nowrap;gap:6px;margin:0;padding:0;border:0;background:none;white-space:nowrap;position:static;box-shadow:none}
 .cad-editor .cad-command-slot button,.cad-editor .cad-command-slot .wall-actions .primary{min-height:30px;min-width:max-content;width:auto;flex:none;padding:5px 10px;font-size:12px;border-radius:5px;text-transform:none;white-space:nowrap}
@@ -49,14 +50,16 @@
 .cad-editor .environment-editor{padding:0}.cad-editor .section-top{gap:6px;margin-bottom:8px}.cad-editor h2{font-size:15px}.cad-editor h3{font-size:13px}.cad-editor .section-top .eyebrow{display:none}.cad-editor .pill{font-size:10px;padding:4px}
 .cad-editor .fields,.cad-editor .opening-fields,.cad-editor .object-fields{grid-template-columns:1fr;gap:9px}.cad-editor label{font-size:12px}.cad-editor input,.cad-editor select,.cad-editor textarea{font-size:12px;min-height:32px;border-radius:4px;padding:7px}
 .cad-editor .environment-navigation{position:static;gap:3px}.cad-editor .environment-navigation button{font-size:11px;padding:5px}
+.cad-property-navigation{margin:4px 0 10px;border-bottom:1px solid var(--border);font-size:11px}.cad-property-navigation>summary{padding:5px 0;cursor:pointer;color:var(--muted)}
 .cad-editor .wall-row{grid-template-columns:26px minmax(0,1fr) 90px;gap:6px;padding:10px 0}.cad-editor .wall-row .remove-wall{grid-column:2/-1;justify-self:end}.cad-editor .wall-properties{grid-template-columns:1fr}
 .cad-editor .opening-card,.cad-editor .room-object-card{padding:10px 0;border:0;border-top:1px solid var(--border);border-radius:0;box-shadow:none}
 .cad-editor .ui-disclosure{border-radius:4px;margin:8px 0;padding:8px}.cad-editor .ui-options-grid{grid-template-columns:1fr}
 .cad-editor .workspace>.sketch-panel:not(.sketch-fullscreen){grid-column:1;grid-row:1;position:relative;inset:auto;width:auto;min-height:0;max-height:none;height:100%;display:flex;flex-direction:column;border:0;border-radius:0;padding:8px;box-shadow:none;overflow:hidden}
-.cad-editor .sketch-heading{flex:none;margin:0 0 6px;padding:0}.cad-editor .sketch-heading .eyebrow{display:none}.cad-editor .sketch-heading h2{font-size:12px}.cad-editor .sketch-heading .expand{display:none}
-.cad-editor .sketch-paper{flex:1;min-height:120px;display:flex;flex-direction:column;overflow:hidden}.cad-editor .sketch-paper svg{flex:1;min-height:0;height:0;width:100%;max-height:none;touch-action:none}
+.cad-editor .sketch-heading{flex:none;margin:0 0 3px;padding:0}.cad-editor .sketch-heading .eyebrow{display:none}.cad-editor .sketch-heading h2{font-size:12px;margin:0}.cad-editor .sketch-heading .expand{display:none}
+.cad-editor .sketch-paper{flex:1;min-height:120px;display:flex;flex-direction:column;overflow:hidden;margin-top:0;border-radius:4px}.cad-editor .sketch-paper svg{flex:1;min-height:0;height:0;width:100%;max-height:none;touch-action:none}
 .cad-editor .sketch-panel:not(.expanded) .zoom-tools,.cad-editor .sketch-panel .zoom-tools{display:flex;flex:none;justify-content:flex-start;padding:5px;gap:5px}.cad-editor .zoom-percent input{width:58px}.cad-editor .sketch-panel:not(.expanded) .label-tools,.cad-editor .label-tools{display:flex;max-height:95px;overflow:auto;flex:none;font-size:11px;padding:5px}
 .cad-editor .zoom-percent{flex:none}.cad-editor .zoom-percent input{min-width:58px;padding:4px;font-size:12px}
+.cad-editor .label-tools{margin-top:3px}.cad-editor .geometry-notes{margin-top:0;padding:3px 5px}
 .cad-editor .workspace.resize-disabled{display:block;overflow:auto}.cad-editor .workspace.resize-disabled>.editor-column{height:100%;padding:0;border:0;overflow:auto}.cad-editor .workspace.resize-disabled>.editor-column:before{display:none}
 .cad-editor .workspace.plan-mode{overflow:hidden}.cad-editor .plan-mode>.editor-column{overflow:hidden}.cad-editor .back-to-environment{margin:4px 8px}
 .cad-editor .floor-plan:not(.plan-fullscreen){height:calc(100% - 42px);display:grid;grid-template-columns:minmax(0,1fr) var(--properties-width);grid-template-rows:auto minmax(0,1fr);gap:0;align-items:stretch}
@@ -72,6 +75,7 @@
 .cad-editor .context-help{font-size:11px;color:var(--muted);margin:6px 0}.cad-editor .context-help summary{cursor:pointer;width:max-content}.cad-editor .context-help p{font-size:11px;line-height:1.5}
 @media(max-width:900px){
  .cad-editor .workspace-header{flex-wrap:wrap;gap:5px 12px}.cad-editor .workspace-header .header-actions{order:3;width:100%;justify-content:flex-start}.cad-editor .workspace-header .header-status{max-width:120px;margin-left:auto}.cad-editor .header-theme{margin-left:auto}
+ .cad-editor .cad-command-slot button{min-height:36px}
  .cad-ribbon-tabs>button:first-child{position:sticky;left:0;background:var(--surface);z-index:2}.cad-ribbon-tabs .cad-properties-toggle{position:sticky;right:0;background:var(--surface);z-index:2}
  .cad-editor .sheet-embedded .sheet-preview-body{display:block;position:relative}.cad-editor .sheet-embedded .sheet-preview-settings{position:absolute;inset:0 0 0 auto;width:min(350px,88vw);z-index:5;background:var(--surface)}
  .cad-editor{--cad-tools-height:90px}.cad-editor .header-context{min-width:0}.cad-editor .header-actions>button span{display:none}.cad-editor .save-indicator{max-width:110px;font-size:10px}

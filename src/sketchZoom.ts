@@ -5,6 +5,12 @@ import { SKETCH_BOUNDS } from './sketchDrag'
 // Zoom/pan do croqui só na visualização: altera o viewBox do SVG, nunca as medidas nem a geometria.
 export interface View { x: number; y: number; w: number; h: number }
 export const FULL_VIEW: View = { x: 0, y: 0, w: SKETCH_BOUNDS.width, h: SKETCH_BOUNDS.height }
+// Extend the visible camera, preserving its center and a uniform drawing scale.
+export function viewportView(view:View,aspect:number):View {
+  if(!Number.isFinite(aspect)||aspect<=0)return {...view}
+  const w=Math.max(view.w,view.h*aspect),h=w/aspect
+  return {x:view.x+(view.w-w)/2,y:view.y+(view.h-h)/2,w,h}
+}
 export const MAX_ZOOM = 3
 export const zoomOf = (view: View) => FULL_VIEW.w / view.w
 export function clampView(view: View): View {
@@ -19,8 +25,10 @@ export function zoomAt(view: View, factor: number, fx = .5, fy = .5): View {
 export const panBy = (view: View, dx: number, dy: number): View => clampView({ ...view, x: view.x - dx, y: view.y - dy })
 
 type Gesture = { kind: 'pinch'; distance: number; view: View; mid: { x: number; y: number } } | { kind: 'pan'; x: number; y: number; view: View }
-export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnabled, moveMode = false,enabled=true }: { panEnabled: boolean; moveMode?: boolean;enabled?:boolean }) {
+export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnabled, moveMode = false,enabled=true,responsive=false }: { panEnabled: boolean; moveMode?: boolean;enabled?:boolean;responsive?:boolean }) {
   const [view, setView] = useState<View>(FULL_VIEW)
+  const [aspect,setAspect]=useState(FULL_VIEW.w/FULL_VIEW.h)
+  const visible=responsive?viewportView(view,aspect):view
   const gesture = useRef<Gesture>(undefined)
   const mouse = useRef<{ id: number; x: number; y: number; view: View; scale: number; moved: boolean }>(undefined)
   const suppressClick = useRef(false)
@@ -66,24 +74,32 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
       event.preventDefault()
       event.stopPropagation()
       if (!event.deltaY) return
-      setView(current => zoomAt(current, event.deltaY > 0 ? 1 / 1.1 : 1.1,
-        (event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height))
+      setView(current => {
+        const projected=responsive?viewportView(current,box.width/box.height):current
+        const x=projected.x+(event.clientX-box.left)/box.width*projected.w
+        const y=projected.y+(event.clientY-box.top)/box.height*projected.h
+        return zoomAt(current,event.deltaY>0?1/1.1:1.1,(x-current.x)/current.w,(y-current.y)/current.h)
+      })
     }
     node.addEventListener('wheel', wheel, { passive: false, capture: true })
+    const resize=()=>{if(node.clientWidth&&node.clientHeight)setAspect(node.clientWidth/node.clientHeight)}
+    const observer=responsive&&typeof ResizeObserver!=='undefined'?new ResizeObserver(resize):undefined
+    if(responsive){resize();observer?.observe(node)}
     return () => {
+      observer?.disconnect()
       node.removeEventListener('wheel', wheel, { capture: true })
       if (svgRef.current === node) svgRef.current = null
     }
-  }, [svgRef, enabled])
+  }, [svgRef, enabled,responsive])
   const onTouchStart = useCallback((event: TouchEvent) => {
     suppressClick.current = false
     const box = rect(); if (!box?.width) return
     if (event.touches.length === 2) {
       const [a, b] = [event.touches[0], event.touches[1]]
       const fx = ((a.clientX + b.clientX) / 2 - box.left) / box.width, fy = ((a.clientY + b.clientY) / 2 - box.top) / box.height
-      gesture.current = { kind: 'pinch', distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, view, mid: { x: view.x + fx * view.w, y: view.y + fy * view.h } }
+      gesture.current = { kind: 'pinch', distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, view, mid: { x: visible.x + fx * visible.w, y: visible.y + fy * visible.h } }
     } else if (event.touches.length === 1 && panEnabled && (moveMode || Math.abs(zoomOf(view)-1)>.01)) gesture.current = { kind: 'pan', x: event.touches[0].clientX, y: event.touches[0].clientY, view }
-  }, [view, panEnabled,moveMode])
+  }, [view, panEnabled,moveMode,visible.x,visible.y,visible.w,visible.h])
   const onTouchMove = useCallback((event: TouchEvent) => {
     const g = gesture.current, box = rect(); if (!g || !box?.width) return
     suppressClick.current = true
@@ -91,17 +107,18 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
       const [a, b] = [event.touches[0], event.touches[1]]
       const scale = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / g.distance
       const { w, h } = clampView({ ...g.view, w: g.view.w / scale })
+      const projected=responsive?viewportView({x:0,y:0,w,h},box.width/box.height):{x:0,y:0,w,h}
       const fx = ((a.clientX + b.clientX) / 2 - box.left) / box.width, fy = ((a.clientY + b.clientY) / 2 - box.top) / box.height
-      setView(clampView({ w, h, x: g.mid.x - fx * w, y: g.mid.y - fy * h }))
+      setView(clampView({ w, h, x: g.mid.x - fx * projected.w+(projected.w-w)/2, y: g.mid.y - fy * projected.h+(projected.h-h)/2 }))
     } else if (g.kind === 'pan' && event.touches.length === 1) {
       const ratio = 1 / (svgRef.current?.getScreenCTM()?.a || box.width / g.view.w)
       setView(panBy(g.view, (event.touches[0].clientX - g.x) * ratio, (event.touches[0].clientY - g.y) * ratio))
     }
-  }, [])
+  }, [responsive])
   const onTouchEnd = useCallback((event: TouchEvent) => { if (event.touches.length === 0) gesture.current = undefined; else onTouchStart(event) }, [onTouchStart])
   const zoomed = Math.abs(zoomOf(view)-1) > .01
   return {
-    bindSvg, view, zoomed, zoom: zoomOf(view), viewBox: `${view.x} ${view.y} ${view.w} ${view.h}`,
+    bindSvg, view, visible, zoomed, zoom: zoomOf(view), viewBox: `${visible.x} ${visible.y} ${visible.w} ${visible.h}`,
     handlers: { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd, onPointerDownCapture, onPointerMoveCapture, onPointerUpCapture, onPointerCancelCapture: onPointerUpCapture, onClickCapture },
     setPercent:(percent:number)=>{if(Number.isFinite(percent))setView(current=>zoomAt(current,Math.max(25,Math.min(300,percent))/(zoomOf(current)*100)))},zoomIn: () => setView(current => zoomAt(current, 1.5)), zoomOut: () => setView(current => zoomAt(current, 1 / 1.5)), reset: () => setView(FULL_VIEW),
   }
