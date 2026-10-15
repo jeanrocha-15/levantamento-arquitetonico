@@ -1,3 +1,36 @@
+# LAC Exchange — integração de campo / BIM
+
+A versão principal anterior foi consolidada antes desta evolução. O trabalho novo fica em `dev`.
+
+## Fluxo novo
+
+1. Revit: **Exportar Revit para LAC**, preferencialmente somente os pavimentos necessários. A leitura não altera o modelo.
+2. Site: **Integração Revit → Revit → LAC → Importar modelo**. Confira o resumo e os conflitos e confirme. O resultado abre na Planta Geral; os ambientes são editáveis.
+3. Site: **LAC → Revit → Exportar LAC Exchange** gera `.lacx` (JSON UTF-8, metros, schema 1). O arquivo é independente do IndexedDB.
+4. Revit: recarregue o pyRevit e execute o novo botão **Sincronizar LAC Exchange**. Escolha o arquivo e os tipos de família quando solicitados.
+5. Confira os avisos no relatório do pyRevit. Exporte novamente do Revit para retornar as identidades e os limites reais ao LAC.
+
+O plugin processa Levels, paredes físicas, aberturas/elementos e finalmente Rooms. Usa Extensible Storage para `lacId`, projeto, última entrada e estado geométrico sincronizado. Tipos compartilhados de família não são alterados diretamente para ajustar objetos: quando necessário, cria um tipo separado. Exclusões exigem confirmação e são revertidas se afetarem dependentes não autorizados.
+
+## Contrato e rastreabilidade
+
+`format: lac-exchange`, `schemaVersion: 1`, `units: m`.
+Coleções: project, levels, rooms, physicalWalls, openings, elements, connections, revitMappings, syncMetadata.
+As coordenadas físicas são XYZ do Revit em metros; os croquis usam Y para baixo e RoomPlacement apenas rotaciona/translada. A ordem/letra das paredes é local.
+
+Paredes e aberturas físicas mantêm uma identidade única e referências aos levantamentos dos ambientes. Medidas originais continuam no SurveyWall e nas versões anteriores. Importações parciais não significam exclusão de elementos ausentes. A comparação utiliza snapshot/versão local/versão recebida e apresenta conflitos sem escolher um lado automaticamente. As últimas dez versões de comparação são preservadas no projeto.
+
+## Limites explícitos desta implementação
+
+- Rooms com contornos retos e fechados são convertidos para edição. Curvas e recortes internos ficam preservados em representações externas, com aviso; não são discretizados silenciosamente em paredes editáveis.
+- Objetos com parâmetros dimensionais reconhecidos usam dimensões reais. Caixas envolventes são referências visuais de edição limitada, nunca medidas de móveis rotacionados.
+- Famílias hospedadas especiais, fórmulas não editáveis e tipos com dimensões incompatíveis permanecem para revisão. Carregue/mapeie famílias adequadas no Revit e repita a sincronização.
+- Diferença de área Room/LAC é apresentada no plugin. Para impor o contorno LAC é necessário compatibilizar suas paredes físicas; não se altera um Room isoladamente para simular um contorno.
+- A documentação, os contratos, a importação real e a lógica de comparação têm testes locais. A criação de famílias/Rooms e as chamadas de Extensible Storage precisam de validação dentro do Revit 2026.1.
+- Desenhos auxiliares, legendas, vistas e anotações do inventário original não são convertidos em elementos BIM físicos. O JSON original deve ser conservado.
+
+## Integração anterior (mantida para compatibilidade)
+
 # LAC → Revit 2026.1
 
 Integração inicial via arquivo JSON + Python no pyRevit. O site continua React e não exige servidor.

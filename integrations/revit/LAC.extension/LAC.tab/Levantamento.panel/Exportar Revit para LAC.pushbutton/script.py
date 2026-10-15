@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
+from lac_exchange import read_identity
 from System import Int64
 from pyrevit import DB, forms, revit, script
 from Autodesk.Revit.UI.Selection import ObjectType
@@ -50,7 +51,10 @@ def json_native_value(value):
 
 def element_ref(element):
     if element is None:return None
-    return {'elementId':str(element.Id.Value),'uniqueId':element.UniqueId}
+    result={'elementId':str(element.Id.Value),'uniqueId':element.UniqueId}
+    identity=read_identity(element)
+    if identity.get('lacId'):result['lacId']=identity['lacId']
+    return result
 
 def resolve_ref(doc,element_id):
     if element_id is None or element_id==DB.ElementId.InvalidElementId:return None
@@ -175,10 +179,18 @@ def serialize_element(element,doc,transform,detailed):
         result['topConstraint']=resolve_ref(doc,top.AsElementId()) if top else None
         result['heightFromBoundingBoxIsNotSurveyed']=True
     if isinstance(element,DB.SpatialElement):
+        identity=read_identity(element)
+        if identity.get('source',{}).get('survey'):result['lacSurvey']=identity['source']['survey']
+        try:
+            parameter=element.get_Parameter(DB.BuiltInParameter.ROOM_NAME)
+            if parameter:result['name']=parameter.AsString()
+        except Exception:pass
         try:result['boundaryLoops']=room_boundaries(element,doc,transform)
         except Exception as error:result['issues'].append('Contorno: {0}'.format(error))
         if not result.get('boundaryLoops'):result['issues'].append('Sem contorno: ambiente nao colocado/fechado ou dados indisponiveis.')
         result['boundaryFace']='finish'
+        try:result['phase']=resolve_ref(doc,element.get_Parameter(DB.BuiltInParameter.ROOM_PHASE).AsElementId())
+        except Exception:pass
         try:result['areaM2']=element.Area*METERS_PER_FOOT**2
         except Exception:pass
         try:result['volumeM3']=element.Volume*METERS_PER_FOOT**3
@@ -192,6 +204,18 @@ def serialize_element(element,doc,transform,detailed):
     if isinstance(element,DB.FamilyInstance):
         result['host']=element_ref(element.Host)
         result['familyName']=element.Symbol.Family.Name if element.Symbol else None
+        dimensions={}
+        for field,names in (('widthM',('Width','Largura','b')),('depthM',('Depth','Profundidade','h')),('heightM',('Height','Altura'))):
+            for owner in (element,element.Symbol):
+                if not owner:continue
+                for name in names:
+                    parameter=owner.LookupParameter(name)
+                    if parameter and parameter.StorageType==DB.StorageType.Double and parameter.HasValue:
+                        try:
+                            if parameter.Definition.GetDataType()==DB.SpecTypeId.Length and parameter.AsDouble()>0:dimensions[field]=parameter.AsDouble()*METERS_PER_FOOT;break
+                        except Exception:pass
+                if field in dimensions:break
+        if dimensions:result['dimensions']=dimensions
         try:result['room']=element_ref(element.Room)
         except Exception:pass
         try:result['instanceTransform']=transform_data(element.GetTransform());result['isMirrored']=element.Mirrored
@@ -400,6 +424,8 @@ def main():
     for record in data['elements']:counts[record['kind']]=counts.get(record['kind'],0)+1
     data['summary']={'byKind':counts,'totalElements':len(data['elements']),'elementsOutsideSelectedLevels':skipped,'unassignedLevel':sum(1 for e in data['elements'] if not e.get('level')),'roomCount':counts.get('room',0),'issueCount':sum(len(e.get('issues',[])) for e in data['elements']),'dimensionCount':len(data['dimensions']),'annotationCount':len(data['annotations']),'viewCount':len(data['views'])}
     if not data['summary']['roomCount']:data['warnings'].append('Sem Rooms/Ambientes cadastrados. Nao foram inventados ambientes a partir de paredes.')
+    project_identity=read_identity(doc.ProjectInformation)
+    if project_identity.get('projectId'):data['source']['lacProjectId']=project_identity['projectId']
     data['summary']['unplacedRoomCount']=len(data['unplacedRooms'])
     from System.IO import File
     temp=tempfile.NamedTemporaryFile(prefix='revit-lac-',suffix='.tmp',dir=os.path.dirname(path),delete=False)

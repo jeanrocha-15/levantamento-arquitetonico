@@ -1,8 +1,9 @@
+import type {Identity,BimState} from './bim/types'
 export type MeasurementSource = 'measured' | 'informed' | 'assumed' | 'calculated'
 // Todos os comprimentos são armazenados em metros.
 export type WallType = 'masonry' | 'drywall' | 'concrete' | 'glass' | 'wood' | 'partition' | 'other'
 export interface SurveyPlacement { method:'diagonal'|'orthogonal'|'angle'|'closure'; referenceVertexId?:string; diagonalId?:string; side?:1|-1; angleDegrees?:number }
-export interface Wall { surveyPlacement?:SurveyPlacement; id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string; placementSide?: 'opposite' | 'same' } }
+export interface Wall extends Identity { physicalWallId?:string; originalMeasuredLengthM?:number|null; surveyPlacement?:SurveyPlacement; id: string; label: string; lengthM: number | null; thickness?: number | null; wallType?: WallType; customWallType?: string; sharedWallReference?: { roomId: string; wallId: string; placementSide?: 'opposite' | 'same' } }
 export type AngleSource = 'assumed' | 'informed' | 'calculated'
 export interface Corner { id: string; wallIds: [string, string]; angleDegrees: number | null; angleSource: AngleSource | null }
 export interface Diagonal { checkOnly?:boolean; vertexIds?:[string,string]; id: string; cornerIds: [string, string]; lengthM: number | null; source: 'measured' }
@@ -17,12 +18,12 @@ export type DoorSide = 'left' | 'right'
 export type OpeningMaterial = 'wood' | 'glass' | 'aluminum' | 'steel' | 'pvc' | 'mixed' | 'other'
 export type DoorVisualType = 'single' | 'double' | 'slide_one' | 'slide_both' | 'slide_two' | 'pivot' | 'folding' | 'gap' | 'other'
 export type WindowVisualType = 'fixed' | 'slide2' | 'slide3' | 'slide4' | 'casement' | 'awning' | 'tilt' | 'louver' | 'other'
-export interface Opening { doorVisualType?:DoorVisualType; windowVisualType?:WindowVisualType; material?:OpeningMaterial; customMaterial?:string; customVisualType?:string; leafCount?:number; originOpeningId?:string; id: string; label: string; wallId: string; type: OpeningType; referenceCornerId: string; offsetM: number | null; widthM: number | null; heightM: number | null; sillHeightM: number | null; connectedRoomId?: string; connectedOpeningId?: string; doorKind?: DoorKind; swing?: DoorSwing; hinge?: DoorSide; slideDirection?: DoorSide }
+export interface Opening extends Identity { physicalOpeningId?:string; doorVisualType?:DoorVisualType; windowVisualType?:WindowVisualType; material?:OpeningMaterial; customMaterial?:string; customVisualType?:string; leafCount?:number; originOpeningId?:string; id: string; label: string; wallId: string; type: OpeningType; referenceCornerId: string; offsetM: number | null; widthM: number | null; heightM: number | null; sillHeightM: number | null; connectedRoomId?: string; connectedOpeningId?: string; doorKind?: DoorKind; swing?: DoorSwing; hinge?: DoorSide; slideDirection?: DoorSide }
 export type InternalWallOrigin =
   | { type: 'perimeter_wall'; wallId: string; referenceCornerId: string; distanceM: number | null }
   | { type: 'internal_wall'; internalWallId: string; referenceEndpoint: 'start' | 'end'; distanceM: number | null }
   | { type: 'free'; position: { xM: number; yM: number } }
-export interface InternalWall {
+export interface InternalWall extends Identity {
   id: string; label: string; origin: InternalWallOrigin; lengthM: number | null;
   // Ângulo horário relativo ao sentido da origem; origens livres usarão o eixo x local.
   orientationDegrees: number | null; thicknessM?: number | null; heightM?: number | null; note?: string;
@@ -41,7 +42,7 @@ export type RoomObjectShape = 'rectangle' | 'circle' | 'line'
 export type StructuralProfile = 'square' | 'rectangular' | 'circular' | 'I' | 'H' | 'T' | 'L' | 'U/C' | 'tubular' | 'custom'
 export type StructuralMaterial = 'cast_concrete' | 'precast_concrete' | 'steel' | 'wood' | 'structural_masonry' | 'other'
 export interface RoomObjectDimensions { widthM?: number | null; depthM?: number | null; diameterM?: number | null; lengthM?: number | null; heightM?: number | null; webM?: number | null; flangeM?: number | null }
-export interface RoomObject {
+export interface RoomObject extends Identity {
   id: string; displayId: string; roomId: string; name: string;
   category: RoomObjectCategory; shape: RoomObjectShape; dimensions: RoomObjectDimensions;
   // Centro do objeto no sistema local: origem no início da primeira parede.
@@ -58,14 +59,14 @@ export interface Photo {
   linkedEntityType?: PhotoEntityType; linkedEntityId?: string;
   roofId?: string; tags: string[]; note?: string; fileId: string; mimeType: string; size: number
 }
-export interface Room { geometryAdjustment?:boolean; perimeterClosed?:boolean; id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingType?: 'suspended' | 'slab'; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; structuralCounters?: { column: number; beam: number }; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; planLabelOffsets?:LabelOffsets; sketchLabelScale?: number; wallMeasurementFace?: 'internal' | 'external'; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
+export interface Room extends Identity { geometryAdjustment?:boolean; perimeterClosed?:boolean; id: string; displayId?: string; name: string; floorId: string; parentRoomId?: string; ceilingType?: 'suspended' | 'slab'; ceilingHeightM: number | null; walls: Wall[]; corners: Corner[]; diagonals: Diagonal[]; openings: Opening[]; openingCounters: Record<OpeningType, number>; internalWalls: InternalWall[]; internalWallCounter: number; objects?: RoomObject[]; objectCounter?: number; structuralCounters?: { column: number; beam: number }; photos?: Photo[]; pendingItems: PendingItem[]; subrooms: Room[]; labelOffsets?: LabelOffsets; planLabelOffsets?:LabelOffsets; sketchLabelScale?: number; wallMeasurementFace?: 'internal' | 'external'; notes?: string; technicalChecks?: Record<string, TechnicalCheck> }
 // Deslocamento manual dos rótulos do croqui (unidades do desenho), por chave estável: wall:<id>, angle:<id>, opening:<id>...
 export type LabelOffsets = Record<string, { dx: number; dy: number; rotation?:number; side?:1|-1 }>
-export interface Floor { id: string; name: string; rooms: Room[] }
+export interface Floor extends Identity { elevation?:number; id: string; name: string; rooms: Room[] }
 // Metros e graus, apenas na Planta Geral. Nunca são coordenadas do croqui individual.
 export interface RoomPlacement { roomId: string; floorId: string; x: number; y: number; rotation: number; locked?: boolean }
 export interface PlanPreferences { locked?:boolean; baseRoomId?: string; gridVisible?: boolean; gridStepM?: number; snap?: boolean; visibility?: Record<string, boolean | undefined> }
 export interface WallCompatibility { id: string; connectionId: string; a: {roomId:string;wallId:string}; b: {roomId:string;wallId:string}; strategy: 'original'|'a'|'b'|'mean'|'manual'; valueM: number | null }
 export interface RoofWater { inclinationPercent?: number | null; id: string; displayId: string; highSide: string; lowSide: string; highHeightM: number | null; lowHeightM: number | null; projectionM: number | null; direction: 'north' | 'east' | 'south' | 'west' | ''; checks?: Record<string, TechnicalCheck> }
 export interface Roof { id: string; displayId: string; projectId: string; floorId?: string; name: string; shape: 'rectangular' | 'square'; lengthM: number | null; widthM: number | null; waterCount: 1 | 2 | 3 | 4; waters: RoofWater[]; note?: string; photos?: Photo[]; checks?: Record<string, TechnicalCheck> }
-export interface Project { representationMode?:'simplified'|'architectural'; geometryChangedRoomIds?:string[]; pdfCompositions?: import('./pdf/compositions').PdfComposition[]; sheetLayouts?: Record<string, import('./pdf/sheetSettings').SheetLayout>; exportSelection?: {scope:'room'|'floor'|'plan';roomId?:string;floorId?:string}; openingCounters?: Record<OpeningType, number>; spatialConnections?: SpatialConnection[]; id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[]; planPreferences?: Record<string, PlanPreferences>; wallCompatibilities?: WallCompatibility[] }
+export interface Project { bim?:BimState; representationMode?:'simplified'|'architectural'; geometryChangedRoomIds?:string[]; pdfCompositions?: import('./pdf/compositions').PdfComposition[]; sheetLayouts?: Record<string, import('./pdf/sheetSettings').SheetLayout>; exportSelection?: {scope:'room'|'floor'|'plan';roomId?:string;floorId?:string}; openingCounters?: Record<OpeningType, number>; spatialConnections?: SpatialConnection[]; id: string; name: string; measurementUnit?: import('./units').MeasurementUnit; roomDisplayCounter?: number; floors: Floor[]; relationships: RoomRelationship[]; generalChecks?: Record<string, TechnicalCheck>; roofs?: Roof[]; roofCounter?: number; detachedRoofPhotos?: Photo[]; roomPlacements?: RoomPlacement[]; planPreferences?: Record<string, PlanPreferences>; wallCompatibilities?: WallCompatibility[] }

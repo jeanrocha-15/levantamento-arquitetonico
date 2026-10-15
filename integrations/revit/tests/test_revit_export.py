@@ -23,7 +23,7 @@ def load():
     module=ast.parse(SOURCE.read_text(encoding='ascii'));nodes=[n for n in module.body if isinstance(n,ast.FunctionDef)]
     specs=types.SimpleNamespace(Length='length',Area='area',Volume='volume',Angle='angle')
     storage=types.SimpleNamespace(String='String',Double='Double',Integer='Integer',ElementId='ElementId')
-    scope={'DB':types.SimpleNamespace(Line=Line,Arc=Arc,StorageType=storage,SpecTypeId=specs),'METERS_PER_FOOT':.3048,'math':math}
+    scope={'DB':types.SimpleNamespace(Line=Line,Arc=Arc,StorageType=storage,SpecTypeId=specs),'METERS_PER_FOOT':.3048,'math':math,'read_identity':lambda e:{}}
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),scope);return scope
 class Tests(unittest.TestCase):
     def test_room_location_survives_unsupported_rotation(self):
