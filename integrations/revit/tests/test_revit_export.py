@@ -26,6 +26,18 @@ def load():
     scope={'DB':types.SimpleNamespace(Line=Line,Arc=Arc,StorageType=storage,SpecTypeId=specs),'METERS_PER_FOOT':.3048,'math':math}
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),scope);return scope
 class Tests(unittest.TestCase):
+    def test_clr_integer_serialization(self):
+        import json
+        class ClrInteger:
+            def GetType(self):return types.SimpleNamespace(FullName='System.Int64')
+            def __str__(self):return '-2000700'
+        convert=load()['json_native_value']
+        self.assertEqual(json.loads(json.dumps({'category':ClrInteger()},default=convert)),{'category':-2000700})
+        class LargeInteger(ClrInteger):
+            def __str__(self):return '9007199254740993'
+        self.assertEqual(convert(LargeInteger()),9007199254740993)
+        with self.assertRaises(TypeError):convert(object())
+
     def test_line_units_and_host_transformation(self):
         record=load()['curve_data'](Line(),Transform())
         self.assertAlmostEqual(record['lengthM'],3.048)

@@ -15,6 +15,17 @@ METERS_PER_FOOT=0.3048
 FORMAT='revit-lac-exchange'
 SCHEMA_VERSION=1
 
+def json_native_value(value):
+    """Convert CLR scalar wrappers only; never stringify unknown model objects."""
+    native_type=value.GetType().FullName if hasattr(value,'GetType') else None
+    if native_type in ('System.Int16','System.Int32','System.Int64','System.UInt16','System.UInt32','System.UInt64','System.Byte','System.SByte'):
+        return int(str(value))
+    if native_type in ('System.Double','System.Single','System.Decimal'):
+        return float(value)
+    if native_type=='System.Boolean':return bool(value)
+    if native_type=='System.String':return u'{0}'.format(value)
+    raise TypeError('Unsupported JSON value: {0}'.format(type(value).__name__))
+
 def element_ref(element):
     if element is None:return None
     return {'elementId':str(element.Id.Value),'uniqueId':element.UniqueId}
@@ -120,7 +131,7 @@ def level_ref(element,doc):
 def serialize_element(element,doc,transform,detailed):
     kind=classify(element)
     result=element_ref(element)
-    result.update({'name':revit.query.get_name(element),'kind':kind,'class':element.GetType().FullName,'category':{'id':element.Category.Id.Value,'name':element.Category.Name},'type':resolve_ref(doc,element.GetTypeId()),'level':level_ref(element,doc),'issues':[]})
+    result.update({'name':revit.query.get_name(element),'kind':kind,'class':element.GetType().FullName,'category':{'id':str(element.Category.Id.Value),'name':element.Category.Name},'type':resolve_ref(doc,element.GetTypeId()),'level':level_ref(element,doc),'issues':[]})
     try:
         result['createdPhase']=resolve_ref(doc,element.CreatedPhaseId)
         result['demolishedPhase']=resolve_ref(doc,element.DemolishedPhaseId)
@@ -363,7 +374,7 @@ def main():
     for record in data['elements']:counts[record['kind']]=counts.get(record['kind'],0)+1
     data['summary']={'byKind':counts,'totalElements':len(data['elements']),'elementsOutsideSelectedLevels':skipped,'unassignedLevel':sum(1 for e in data['elements'] if not e.get('level')),'roomCount':counts.get('room',0),'issueCount':sum(len(e.get('issues',[])) for e in data['elements']),'dimensionCount':len(data['dimensions']),'annotationCount':len(data['annotations']),'viewCount':len(data['views'])}
     if not data['summary']['roomCount']:data['warnings'].append('Sem Rooms/Ambientes cadastrados. Nao foram inventados ambientes a partir de paredes.')
-    payload=json.dumps(data,ensure_ascii=False,allow_nan=False,indent=2).encode('utf-8')
+    payload=json.dumps(data,ensure_ascii=False,allow_nan=False,indent=2,default=json_native_value).encode('utf-8')
     from System.IO import File
     temp=tempfile.NamedTemporaryFile(prefix='revit-lac-',suffix='.tmp',dir=os.path.dirname(path),delete=False)
     try:
