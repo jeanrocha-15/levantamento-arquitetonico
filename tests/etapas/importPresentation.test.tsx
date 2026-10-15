@@ -8,7 +8,8 @@ import {surveyDimensions} from '../../src/surveyDimensions'
 import {buildRoomGeometry} from '../../src/roomGeometry'
 import {repairRoomOpenings} from '../../src/bim/repairRoomOpenings'
 import {importRevitInventory} from '../../src/bim/importRevit'
-import {drawPlanSheet} from '../../src/pdf/planSheet'
+import {composeSheet} from '../../src/pdf/sheetComposer'
+import {defaultSheetLayout} from '../../src/pdf/sheetSettings'
 import {buildPdf} from '../../src/pdf/pdfWriter'
 import Sketch from '../../src/Sketch'
 
@@ -51,7 +52,7 @@ describe('Imported model presentation',()=>{
  })
  it.runIf(!!process.env.LAC_REVIT_FIXTURE)('renders the user model with rounded compact PDF annotations',()=>{
   const p=importRevitInventory(JSON.parse(readFileSync(process.env.LAC_REVIT_FIXTURE!,'utf8'))),floor=[...p.floors].sort((a,b)=>b.rooms.length-a.rooms.length)[0]
-  const {page}=drawPlanSheet({project:p,floor,option:{sheet:'A1',orientation:'landscape',scale:100},preview:true})
+  const {page}=composeSheet(p,{kind:'plan',floor},defaultSheetLayout({sheet:'A1',orientation:'landscape',scale:100}))
   const bytes=buildPdf(page,'Verificação de apresentação'),text=new TextDecoder('latin1').decode(bytes)
   expect(text).not.toMatch(/\d,\d{5,} m/)
   mkdirSync('tmp/pdfs',{recursive:true});writeFileSync('tmp/pdfs/deposito-after.pdf',bytes)

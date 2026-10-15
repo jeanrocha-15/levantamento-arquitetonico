@@ -13,12 +13,12 @@ export function overlaps(a:DimensionBox,b:DimensionBox){
 export function pointsBox(points:Point[],padding=0):DimensionBox{const xs=points.map(p=>p.x),ys=points.map(p=>p.y),x=Math.min(...xs)-padding,y=Math.min(...ys)-padding;const box:DimensionBox={x,y,width:Math.max(...xs)-x+padding,height:Math.max(...ys)-y+padding};if(points.length===2&&padding>0){const [a,b]=points,length=Math.hypot(b.x-a.x,b.y-a.y)||1,u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:-u.y,y:u.x};box.polygon=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([end,side])=>{const p=end===-1?a:b;return{x:p.x+u.x*end*padding+n.x*side*padding,y:p.y+u.y*end*padding+n.y*side*padding}})}return box}
 export function parallelOffset(offset:{dx:number;dy:number},angle:number){const r=angle*Math.PI/180,u={x:Math.cos(r),y:Math.sin(r)},distance=offset.dx*u.x+offset.dy*u.y;return {dx:u.x*distance,dy:u.y*distance}}
 // Search along the same band first, then outward bands and finally the opposite side.
-export function layoutDimensions(requests:DimensionRequest[],obstacles:DimensionBox[],font:number):Map<string,ArchitecturalDimension>{
+export function layoutDimensions(requests:DimensionRequest[],obstacles:DimensionBox[],font:number,options:{bands?:number}={}):Map<string,ArchitecturalDimension>{
  const occupied=[...obstacles],result=new Map<string,ArchitecturalDimension>()
  for(const request of requests){const length=Math.hypot(request.b.x-request.a.x,request.b.y-request.a.y);if(length<1e-9)continue
   const u={x:(request.b.x-request.a.x)/length,y:(request.b.y-request.a.y)/length},normal={x:u.y,y:-u.x},width=Math.max(font,request.text.length*font*.57),height=font*1.35
   let best:ArchitecturalDimension|undefined,bestScore=Infinity
-  search:for(let band=0;band<6;band++)for(const side of [request.side??1,-(request.side??1)] as (1|-1)[])for(const shift of [0,1.5,-1.5,3,-3,6,-6,10,-10]){
+  search:for(let band=0;band<(options.bands??6);band++)for(const side of [request.side??1,-(request.side??1)] as (1|-1)[])for(const shift of [0,1.5,-1.5,3,-3,6,-6,10,-10]){
    const n={x:normal.x*side,y:normal.y*side},line=dimensionLine(request.a,request.b,n,(request.thickness??0)+font*(2+band*1.5),font*.3,font*.55);if(!line)continue
    const along=Math.max(-length/2,Math.min(length/2,font*shift));line.text={x:line.text.x+u.x*along,y:line.text.y+u.y*along};const r=line.angle*Math.PI/180,bw=Math.abs(width*Math.cos(r))+Math.abs(height*Math.sin(r)),bh=Math.abs(width*Math.sin(r))+Math.abs(height*Math.cos(r)),box={x:line.text.x-bw/2,y:line.text.y-bh/2,width:bw,height:bh,polygon:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([sx,sy])=>({x:line.text.x+sx*width/2*Math.cos(r)-sy*height/2*Math.sin(r),y:line.text.y+sx*width/2*Math.sin(r)+sy*height/2*Math.cos(r)}))},stroke=pointsBox([line.from,line.to],font*.12)
    const score=occupied.filter(a=>overlaps(a,box)||overlaps(a,stroke)).length

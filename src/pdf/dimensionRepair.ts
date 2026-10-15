@@ -26,8 +26,10 @@ export function repairSheetDimensions(scene:PdfSceneItem[],area:DimensionBox){
   const score=(items:PdfSceneItem[])=>items.filter(i=>i.kind==='text'||i.kind==='line'&&!i.style.dimensionAnchor).reduce((sum,item)=>{const b=boxOf(item)!;return sum+(inside(b,area)?0:10000)+other.filter(a=>overlaps(a,b)).length},0)
   let best=items,bestScore=score(items);if(!bestScore)continue
   const anchor=items.find((i):i is Extract<PdfSceneItem,{kind:'line'}>=>i.kind==='line'&&!!i.style.dimensionAnchor),distance=anchor?(anchor.b.x-anchor.a.x)*n.x+(anchor.b.y-anchor.a.y)*n.y:0,sign=distance<0?-1:1
-  const bands=[0,...[2,4,8,12,18].map(v=>v*size*sign),-2*distance,...[2,4,8,12].map(v=>-2*distance-v*size*sign)]
-  search:for(const band of bands)for(const parallel of [0,2,-2,4,-4,8,-8,12,-12].map(v=>v*size)){const next=candidate(parallel,band),value=score(next);if(value<bestScore){best=next;bestScore=value}if(!value)break search}
+  // Never solve a crowded sheet by sending dimensions far from their hosts.
+  // Try a small correction or the opposite face at the same distance.
+  const bands=[0,size*sign,-2*distance,-2*distance-size*sign]
+  search:for(const band of bands)for(const parallel of [0,1,-1,2,-2].map(v=>v*size)){const next=candidate(parallel,band),value=score(next);if(value<bestScore){best=next;bestScore=value}if(!value)break search}
   if(best!==items){let index=0;result=result.map(item=>item.group===group?best[index++]:item);repositioned++}
   if(bestScore)unresolved++
  }
