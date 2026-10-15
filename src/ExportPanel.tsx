@@ -1,5 +1,4 @@
 import LocalCleanupPanel from './LocalCleanupPanel'
-import RevitExportPanel from './RevitExportPanel'
 import { scopedProject, exportScopeNames } from './exportScope'
 import type { ExportScope } from './exportScope'
 import { useRef, useState } from 'react'
@@ -12,6 +11,7 @@ import { createBackup, downloadText, importProjects, parseBackup, projectCsv } f
 
 // Exportações (relatório, planilha, backup) e importação de backup.
 export default function ExportPanel({ workspace, project, floor, room, onImport, onReport, onChangeProject, standalone=false }: { standalone?: boolean; workspace: WorkspaceData; project: Project; floor?: Floor; room?: Room; onImport: (data: WorkspaceData) => void; onReport: () => void; onChangeProject?:(project:Project)=>void }) {
+  const [tab,setTab]=useState('pdf')
   const [scope,setScope]=useState<ExportScope>(room?'room':'project')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string }>()
   const input = useRef<HTMLInputElement>(null)
@@ -27,20 +27,23 @@ export default function ExportPanel({ workspace, project, floor, room, onImport,
     } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Não foi possível importar o arquivo.' }) }
     finally { if (input.current) input.current.value = '' }
   }
-  return <details open={standalone || undefined} className={`export-panel ${standalone ? "exports-page" : ""}`}><summary>⇩ Exportar e importar</summary>
+  return <details open={standalone || undefined} className={`export-panel ${standalone ? "exports-page" : ""}`}><summary>Documentos e backups</summary><nav className="export-actions" aria-label="Documentos"><button aria-pressed={tab==='pdf'} onClick={()=>setTab('pdf')}>PDF e relatórios</button><button aria-pressed={tab==='backup'} onClick={()=>setTab('backup')}>Backup e importação</button><button aria-pressed={tab==='manage'} onClick={()=>setTab('manage')}>Histórico e limpeza</button></nav>
+    {tab==='backup' && <>
     <label>Escopo do JSON / backup<select value={scope} onChange={e=>setScope(e.target.value as ExportScope)}>{Object.entries(exportScopeNames).map(([value,label])=><option key={value} value={value} disabled={value==='room' && !room || ['floor','plan'].includes(value) && !floor}>{label}</option>)}</select></label><div className="export-actions">
-      <button onClick={onReport}>Relatório (imprimir / PDF)</button>
-      <button onClick={() => run(() => { const file = projectCsv(project); downloadText(file.fileName, file.text, 'text/csv;charset=utf-8'); setMessage({ type: 'ok', text: `Planilha ${file.fileName} gerada.` }) })}>Planilha do projeto (CSV)</button>
       <button onClick={() => run(() => { const file = createBackup({...workspace,projects:[scopedProject(project,scope,floor?.id,room?.id)]}, [project.id]); downloadText(file.fileName, file.text, 'application/json'); setMessage({ type: 'ok', text: `Backup ${file.fileName} gerado.` }) })}>Exportar {exportScopeNames[scope]} (JSON)</button>
       <button onClick={() => run(() => { const file = createBackup(workspace); downloadText(file.fileName, file.text, 'application/json'); setMessage({ type: 'ok', text: `Backup ${file.fileName} gerado.` }) })}>Backup de todos os projetos</button>
       <label className="import-button">Importar backup…<input ref={input} type="file" accept="application/json,.json" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file) }}/></label>
     </div>
-    <PdfExportPanel onChangeProject={onChangeProject} project={project} floor={floor} room={room}/>
-    <ProjectArchivePanel workspace={workspace} project={project} onImport={onImport}/>
+    </>}
+    {tab==='pdf' && <><div className="export-actions">      <button onClick={onReport}>Relatório (imprimir / PDF)</button>
+      <button onClick={() => run(() => { const file = projectCsv(project); downloadText(file.fileName, file.text, 'text/csv;charset=utf-8'); setMessage({ type: 'ok', text: `Planilha ${file.fileName} gerada.` }) })}>Planilha do projeto (CSV)</button>
+</div><PdfExportPanel onChangeProject={onChangeProject} project={project} floor={floor} room={room}/></>}
+    {tab==='backup' && <><ProjectArchivePanel workspace={workspace} project={project} onImport={onImport}/>
     <p className="muted">O arquivo .levantamento leva o projeto inteiro com as fotos; o backup JSON guarda as medidas (sem as imagens). Ambos podem ser importados em outro navegador ou aparelho.</p>
-    <RevitExportPanel key={project.id} project={project}/>
+    </>}
+    {tab==='manage' && <>
     <LocalCleanupPanel workspace={workspace} onReset={onImport}/>
-    <ServerHistory/>
+    <ServerHistory/></>}
     {message && <p className={message.type === 'error' ? 'export-error' : 'export-ok'} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</p>}
   </details>
 }
