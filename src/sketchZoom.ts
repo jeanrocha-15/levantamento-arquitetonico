@@ -82,7 +82,7 @@ export function useSketchZoom(svgRef: RefObject<SVGSVGElement | null>, { panEnab
       })
     }
     node.addEventListener('wheel', wheel, { passive: false, capture: true })
-    const resize=()=>{if(node.clientWidth&&node.clientHeight)setAspect(node.clientWidth/node.clientHeight)}
+    const resize=()=>{const box=node.getBoundingClientRect();if(box.width&&box.height)setAspect(box.width/box.height)}
     const observer=responsive&&typeof ResizeObserver!=='undefined'?new ResizeObserver(resize):undefined
     if(responsive){resize();observer?.observe(node)}
     return () => {
