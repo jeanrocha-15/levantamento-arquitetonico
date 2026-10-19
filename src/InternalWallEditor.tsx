@@ -1,3 +1,4 @@
+import {CadTool} from './CadIcon'
 import {useEffect,useState} from 'react'
 import {ContextHelp,CadCommands} from './CadWorkspace'
 import { nextVisualSequence } from './visualIds'
@@ -25,7 +26,7 @@ export default function InternalWallEditor({ room, onChange, checks, contextual=
   return <section className="internal-wall-editor" aria-label="Paredes internas">
     <h3>Paredes internas</h3>
     <ContextHelp><p className="angle-help">Cada PI pertence somente a este ambiente e parte de uma parede do perímetro. A sequência A, B, C… permanece independente.</p></ContextHelp>
-    <CadCommands area="Elementos"><button className="primary" disabled={room.walls.length < 2} onClick={addInternalWall}>＋ Adicionar parede interna</button></CadCommands>
+    <CadCommands area="Elementos"><CadTool icon="internal" disabled={room.walls.length < 2} onClick={addInternalWall}>Parede interna</CadTool></CadCommands>
     {room.walls.length < 2 && <p className="angle-help">Cadastre pelo menos duas paredes para identificar os cantos de referência.</p>}
     {contextual&&<label>Propriedades da parede interna<select aria-label="Selecionar parede interna nas propriedades" value={inspected} onChange={e=>setInspected(e.target.value)}><option value="">Todas as paredes internas</option>{room.internalWalls.map(w=><option key={w.id} value={w.id}>{w.label}</option>)}</select></label>}
     {room.internalWalls.filter(w=>!contextual||!room.internalWalls.some(w=>w.id===inspected)||w.id===inspected).map(internalWall => {

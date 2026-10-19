@@ -1,11 +1,28 @@
 import {describe,it,expect} from 'vitest'
 import {renderToStaticMarkup} from 'react-dom/server'
 import {CadViewTabs} from '../../src/CadWorkspace'
+import ProjectBrowser,{browserRoomMatches} from '../../src/ProjectBrowser'
 import RoomEditor from '../../src/RoomEditor'
 import {roomFrom,project,opening} from '../etapa11/helpers'
 import {buildRoomGeometry} from '../../src/roomGeometry'
 
 describe('CAD editor presentation',()=>{
+ it('finds nested rooms by name or display ID without changing the hierarchy',()=>{
+  const parent=roomFrom('Depósito',[4,3,4,3]),child=roomFrom('Área técnica',[2,2,2,2])
+  child.displayId='SUB-007';parent.subrooms=[child]
+  const before=JSON.stringify(parent)
+  expect(browserRoomMatches(parent,'area TECNICA')).toBe(true)
+  expect(browserRoomMatches(parent,'sub-007')).toBe(true)
+  expect(browserRoomMatches(parent,'cozinha')).toBe(false)
+  expect(JSON.stringify(parent)).toBe(before)
+ })
+ it('exposes project, floor, room and exchange navigation without editing the project',()=>{
+  const room=roomFrom('Sala',[4,3,4,3]),p=project([room]),before=JSON.stringify(p)
+  const noop=()=>{throw Error('Rendering must not edit data')}
+  const html=renderToStaticMarkup(<ProjectBrowser project={p} floorId="F1" roomId={room.id} view={{kind:'room',key:'room:'+room.id,name:room.name,roomId:room.id,floorId:'F1'}} sheets={[]} issueCount={0} onOpen={noop} onAddFloor={noop} onAddRoom={noop} onDeleteRoom={noop} onDeleteFloor={noop} onDeleteProject={noop} onRenameProject={noop} onRenameFloor={noop} onRoof={noop} onRevit={noop} onChecklist={noop} settings={null}/> )
+  for(const name of ['Buscar no projeto','Pavimentos','Planta Geral','Ambientes','Folhas','Fotos','Checklist','Pendências','Sincronização','Elementos incompatíveis'])expect(html).toContain(name)
+  expect(JSON.stringify(p)).toBe(before)
+ })
  it('shows only the selected wall while preserving the room and existing commands',()=>{
   const room=roomFrom('Sala',[4,3,4,3]),p=project([room]),before=JSON.stringify(p)
   const html=renderToStaticMarkup(<RoomEditor contextual room={room} project={p} survey={buildRoomGeometry(room)} section="perimeter" onChange={()=>{throw Error('Presentation must not edit data')}} relatedRooms={[]} onNavigate={()=>{}} focusIssue={{id:'selection',roomId:room.id,elementId:room.walls[1].id,field:'lengthM',description:'',kind:'automatic'}}/>)

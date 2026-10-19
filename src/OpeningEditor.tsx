@@ -1,3 +1,4 @@
+import {CadTool} from './CadIcon'
 import {CadCommands,ContextHelp} from './CadWorkspace'
 import { nextProjectOpeningSequence } from './spatialConnections'
 import { ElementPhotos } from './PhotoActions'
@@ -15,7 +16,7 @@ import { visualDoor } from './openingSymbols'
 import type { RoomOption } from './RoomConnections'
 import { useEffect, useState } from 'react'
 
-export default function OpeningEditor({ contextual=false, room, onChange, checks, relatedRooms = [], focusId, project, onProjectChange }: { contextual?:boolean; room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[]; focusId?: string; project:Project; onProjectChange?:(project:Project)=>void }) {
+export default function OpeningEditor({onInspect, contextual=false, room, onChange, checks, relatedRooms = [], focusId, project, onProjectChange }: {onInspect?:(id:string)=>void; contextual?:boolean; room: Room; onChange: (room: Room) => void; checks: OpeningCheck[]; relatedRooms?: RoomOption[]; focusId?: string; project:Project; onProjectChange?:(project:Project)=>void }) {
   const { unit, format } = useMeasurements()
   const [inspected,setInspected]=useState(focusId??'')
   const [typeFilter,setTypeFilter]=useState('')
@@ -38,11 +39,11 @@ export default function OpeningEditor({ contextual=false, room, onChange, checks
   return <section className="opening-editor" aria-label="Aberturas nas paredes">
     <h3>Portas, janelas e vãos</h3>
     <ContextHelp><p className="angle-help">Medidas em {unit}. A distância parte do canto escolhido até a borda mais próxima da abertura. O croqui acompanha a unidade do projeto.</p></ContextHelp>
-    <CadCommands area="Aberturas"><div className="opening-actions">{(['door', 'window', 'gap'] as const).map(type => <button key={type} disabled={!canAdd} onClick={() => addOpening(type)}>＋ {openingNames[type]}</button>)}</div></CadCommands>
+    <CadCommands area="Aberturas"><div className="opening-actions">{(['door', 'window', 'gap'] as const).map(type => <CadTool key={type} icon={type==='door'?'door':type==='window'?'window':'gap'} disabled={!canAdd} onClick={() => addOpening(type)}>{openingNames[type]}</CadTool>)}</div></CadCommands>
     {offerType && <div className="opening-offer" role="dialog" aria-label="Usar abertura existente?"><h4>Usar abertura existente?</h4>{incoming(offerType).map(candidate=><div key={candidate.opening.id}><p>Usar {candidate.opening.label} existente de {candidate.room.name}?</p><button onClick={()=>addOpening(offerType,candidate.opening,candidate.room.id)}>Usar existente — {candidate.room.name} / {candidate.opening.label}</button></div>)}<button onClick={()=>addOpening(offerType,undefined,undefined,true)}>Criar independente</button><button onClick={()=>setOfferType(undefined)}>Cancelar</button></div>}
     <div className="category-filters"><label>Mostrar tipo<select value={typeFilter} onChange={event=>setTypeFilter(event.target.value)}><option value="">Todos os tipos</option>{Object.entries(openingNames).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Mostrar parede<select value={wallFilter} onChange={event=>setWallFilter(event.target.value)}><option value="">Todas as paredes</option>{[...room.walls,...room.internalWalls].map(wall=><option key={wall.id} value={wall.id}>Parede {wall.label}</option>)}</select></label></div>
     {!canAdd && <p className="angle-help">Cadastre pelo menos duas paredes para identificar os cantos de referência.</p>}
-    {contextual&&<label>Propriedades da abertura<select aria-label="Selecionar abertura nas propriedades" value={inspected} onChange={e=>{setInspected(e.target.value);setTypeFilter('');setWallFilter('')}}><option value="">Todas as aberturas</option>{room.openings.map(o=><option key={o.id} value={o.id}>{o.label} · {openingNames[o.type]}</option>)}</select></label>}
+    {contextual&&<label>Propriedades da abertura<select aria-label="Selecionar abertura nas propriedades" value={inspected} onChange={e=>{setInspected(e.target.value);setTypeFilter('');setWallFilter('');if(e.target.value)onInspect?.(e.target.value)}}><option value="">Todas as aberturas</option>{room.openings.map(o=><option key={o.id} value={o.id}>{o.label} · {openingNames[o.type]}</option>)}</select></label>}
     {room.openings.filter(opening=>(!contextual||!room.openings.some(o=>o.id===inspected)||opening.id===inspected)&&(!typeFilter || opening.type===typeFilter) && (!wallFilter || opening.wallId===wallFilter)).map(opening => {
       const references = getWallReferences(room.walls, room.corners, opening.wallId,room.internalWalls)
       const reference = references.find(item => item.id === opening.referenceCornerId)

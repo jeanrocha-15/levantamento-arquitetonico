@@ -1,3 +1,4 @@
+import {CadTool} from './CadIcon'
 import {CadCommands,ContextHelp} from './CadWorkspace'
 import StructuralFields from './StructuralFields'
 import AttachmentFields from './AttachmentFields'
@@ -24,7 +25,7 @@ export default function RoomObjectEditor({ contextual=false, room, onChange, sel
   return <section className="room-object-editor" ref={section} aria-label="Objetos do ambiente">
     <h3>Objetos, móveis e equipamentos</h3>
     <ContextHelp><p className="angle-help">Posicione pelo centro. A origem X=0, Y=0 é o início da primeira parede: X acompanha essa parede; Y aponta para baixo no croqui. A posição e as dimensões usam {unit}.</p></ContextHelp>
-    <CadCommands area="Elementos"><div className="structural-actions"><button className="primary" onClick={add}>＋ Adicionar objeto</button><button onClick={()=>addStructural('column')}>＋ Pilar</button><button onClick={()=>addStructural('beam')}>＋ Viga</button></div></CadCommands>
+    <CadCommands area="Elementos"><div className="structural-actions"><CadTool icon="object" onClick={add}>Objeto</CadTool><CadTool icon="column" onClick={()=>addStructural('column')}>Pilar</CadTool><CadTool icon="beam" onClick={()=>addStructural('beam')}>Viga</CadTool></div></CadCommands>
     {contextual&&<label>Propriedades do elemento<select aria-label="Selecionar objeto nas propriedades" value={selectedId??''} onChange={e=>onSelect?.(e.target.value)}><option value="">Todos os elementos</option>{(room.objects??[]).map(o=><option key={o.id} value={o.id}>{o.displayId} · {o.name}</option>)}</select></label>}
     {(room.objects ?? []).filter(o=>!contextual||!(room.objects??[]).some(item=>item.id===selectedId)||o.id===selectedId).map(object => {
       const update = (changes: Partial<RoomObject>) => onChange({ ...room, objects: (room.objects ?? []).map(item => item.id === object.id ? { ...item, ...changes } : item) })

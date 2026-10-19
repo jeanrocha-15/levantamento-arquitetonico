@@ -1,4 +1,7 @@
-import {useCadEditor,CadStatus,ContextHelp} from './CadWorkspace'
+import CadIcon,{CadTool} from './CadIcon'
+import {roomMetrics} from './metrics'
+import {formatMetric} from './metrics'
+import {useCadEditor,CadStatus,ContextHelp,CadCommands} from './CadWorkspace'
 import ArchitecturalDimensionSketch from './ArchitecturalDimensionSketch'
 import { layoutDimensions, pointsBox, dimensionPoints } from './architecturalDimensions'
 import { surveyDimensions } from './surveyDimensions'
@@ -31,8 +34,9 @@ const compactLayout = () => typeof window !== 'undefined' && !!window.matchMedia
 export default function Sketch({ project, room, survey, focusElementId, selectedObjectId, onSelectObject, variant = 'panel', onLabelOffsetsChange, onFocusField, onObjectsChange, onLabelScaleChange }: { project?:Project; room?: Room; survey?: RoomGeometry; focusElementId?: string; selectedObjectId?: string; onSelectObject?: (id: string) => void; variant?: 'panel' | 'report'; onLabelOffsetsChange?: (offsets: LabelOffsets) => void; onFocusField?: (elementId: string, field: string) => void; onObjectsChange?: (objects: NonNullable<Room['objects']>) => void; onLabelScaleChange?: (scale: number) => void }) {
   const { unit, format } = useMeasurements()
   const [expanded, setExpanded] = useState(false)
+  const cad=useCadEditor()
   const [labelDetails,setLabelDetails]=useState<boolean>()
-  const detailedLabels=labelDetails??!room?.revitUniqueId
+  const detailedLabels=labelDetails??(!cad&&!room?.revitUniqueId)
   const compactLabels=!detailedLabels
   const dimensionOptions={all:detailedLabels,selectedKey:focusElementId&&room?`${room.id}|wall:${focusElementId}`:undefined}
   const [fullscreen,setFullscreen]=useState(false)
@@ -42,7 +46,6 @@ export default function Sketch({ project, room, survey, focusElementId, selected
   const labelScale = sketchLabelScale(room?.sketchLabelScale)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useLabelDrag({ offsets: room?.labelOffsets, onChange: onLabelOffsetsChange, enabled: variant !== 'report' && !moveMode && !!room && !!onLabelOffsetsChange, arrange, svgRef })
-  const cad=useCadEditor()
   const zoom = useSketchZoom(svgRef, { panEnabled: !arrange, moveMode,responsive:cad&&variant!=='report',enabled:variant!=='report'&&(cad||fullscreen||expanded||!compactLayout()) })
   const [selection, setSelection] = useState<{ roomId: string; wallId: string }>()
   useEffect(() => {
@@ -66,6 +69,7 @@ export default function Sketch({ project, room, survey, focusElementId, selected
   const selected = selection?.roomId === room?.id ? selection?.wallId : undefined
   const selectedObject = room?.objects?.find(object => object.id === selectedObjectId)
   const selectedWall = room?.walls.find(wall => wall.id === selected)
+  const metrics=useMemo(()=>room&&survey?roomMetrics(room,survey):undefined,[room,survey])
   const sketchOptions=<>
     {variant !== 'report' && room && <div className="label-tools"><button aria-pressed={detailedLabels} onClick={()=>setLabelDetails(!detailedLabels)}>{detailedLabels?'Rótulos completos — simplificar':'Croqui limpo — mostrar detalhes'}</button>
       <button className={`label-arrange ${arrange ? 'is-on' : ''}`} aria-pressed={arrange} onClick={() => { setArrange(value => !value); setMoveMode(false); drag.setActive(undefined) }}>✥ {arrange ? 'Concluir ajuste' : 'Ajustar rótulos'}</button>
@@ -83,10 +87,11 @@ export default function Sketch({ project, room, survey, focusElementId, selected
     </details>
   </>
   return <aside className={variant === 'report' ? 'sketch-panel sketch-report' : `sketch-panel ${cad?'cad-sketch':''} ${expanded ? 'expanded' : ''} ${fullscreen?'sketch-fullscreen':''}`} aria-label="Croqui do ambiente">
-    {variant!=='report'&&<CadStatus>Zoom: {Math.round(zoom.zoom*100)}%</CadStatus>}{(!cad||variant==='report')&&<div className="sketch-heading"><div><span className="eyebrow">VISUALIZAÇÃO</span><h2>Croqui do ambiente</h2></div><button className="sketch-fullscreen-button" onClick={()=>setFullscreen(v=>!v)}>{fullscreen?'Sair da tela cheia':'Tela cheia'}</button><button className="expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Recolher' : 'Expandir'}</button></div>}
-    <div className={`sketch-paper ${arrange ? 'is-arranging' : ''} ${zoom.zoomed ? 'is-zoomed' : ''} ${moveMode ? 'is-panning' : ''} ${selectedObject && onObjectsChange ? 'object-selected' : ''}`} {...(variant === 'report' || (!cad && !fullscreen && !expanded && compactLayout()) ? {} : zoom.handlers)}>{variant !== 'report' && <div className="zoom-tools" role="group" aria-label="Zoom do croqui">{cad&&<strong>Croqui</strong>}<button onClick={zoom.zoomOut} disabled={zoom.zoom<=.25} aria-label="Diminuir zoom">−</button><label className="zoom-percent"><input aria-label="Percentual de zoom" type="number" min="25" max="300" step="25" value={Math.round(zoom.zoom*100)} onChange={e=>{if(e.target.value)zoom.setPercent(Number(e.target.value))}}/>%</label><button onClick={zoom.zoomIn} disabled={zoom.zoom>=3} aria-label="Aumentar zoom">+</button><button onClick={zoom.reset}>Ajustar à tela</button><button aria-label="Mover croqui" aria-pressed={moveMode} onClick={()=>{setMoveMode(v=>!v);setArrange(false)}}>✥ Mover</button>{cad&&<button className="sketch-fullscreen-button" onClick={()=>setFullscreen(v=>!v)}>{fullscreen?'Sair da tela cheia':'Tela cheia'}</button>}</div>}<DragProvider api={drag.api} labelScale={labelScale}><svg ref={zoom.bindSvg} style={{ '--sketch-label-scale': labelScale } as CSSProperties} viewBox={variant === 'report' ? '0 0 440 340' : zoom.viewBox} role="group" aria-label={`Croqui de ${room?.name || 'ambiente'}, com ângulos entre paredes`} {...drag.svgHandlers}>
-      <defs><pattern id={`${svgId}-grid`} width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" style={{ fill: 'var(--c-d7ddd4)' }}/></pattern><marker id={`${svgId}-arrow`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" style={{ fill: 'var(--c-947239)' }}/></marker></defs>
+    {variant!=='report'&&<CadStatus>Zoom: {Math.round(zoom.zoom*100)}%</CadStatus>}{cad&&variant!=='report'&&<CadCommands area={['Levantamento','Aberturas','Elementos','Anotar']} inline={fullscreen} hideOutsideArea><div className="cad-selection-tools"><CadTool icon="select" aria-pressed={!moveMode&&!arrange} onClick={()=>{setMoveMode(false);setArrange(false)}}>Selecionar</CadTool></div></CadCommands>}{(!cad||variant==='report')&&<div className="sketch-heading"><div><span className="eyebrow">VISUALIZAÇÃO</span><h2>Croqui do ambiente</h2></div><button className="sketch-fullscreen-button" onClick={()=>setFullscreen(v=>!v)}>{fullscreen?'Sair da tela cheia':'Tela cheia'}</button><button className="expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Recolher' : 'Expandir'}</button></div>}
+    <div className={`sketch-paper ${arrange ? 'is-arranging' : ''} ${zoom.zoomed ? 'is-zoomed' : ''} ${moveMode ? 'is-panning' : ''} ${selectedObject && onObjectsChange ? 'object-selected' : ''}`} {...(variant === 'report' || (!cad && !fullscreen && !expanded && compactLayout()) ? {} : zoom.handlers)}>{variant !== 'report' && <div className="zoom-tools" role="group" aria-label="Zoom do croqui"><button onClick={zoom.zoomOut} disabled={zoom.zoom<=.25} aria-label="Diminuir zoom">−</button><label className="zoom-percent"><input aria-label="Percentual de zoom" type="number" min="25" max="300" step="25" value={Math.round(zoom.zoom*100)} onChange={e=>{if(e.target.value)zoom.setPercent(Number(e.target.value))}}/>%</label><button onClick={zoom.zoomIn} disabled={zoom.zoom>=3} aria-label="Aumentar zoom">+</button><button onClick={zoom.reset}>Ajustar à tela</button><button aria-label="Mover croqui" aria-pressed={moveMode} onClick={()=>{setMoveMode(v=>!v);setArrange(false)}}><CadIcon name="hand"/><span>Mover</span></button>{cad&&<button className="sketch-fullscreen-button" aria-label={fullscreen?'Sair da tela cheia':'Tela cheia'} title={fullscreen?'Sair da tela cheia':'Tela cheia'} onClick={()=>setFullscreen(v=>!v)}><CadIcon name="fit"/></button>}</div>}<DragProvider api={drag.api} labelScale={labelScale}><svg ref={zoom.bindSvg} style={{ '--sketch-label-scale': labelScale } as CSSProperties} viewBox={variant === 'report' ? '0 0 440 340' : zoom.viewBox} role="group" aria-label={`Croqui de ${room?.name || 'ambiente'}, com ângulos entre paredes`} {...drag.svgHandlers}>
+      <defs><pattern id={`${svgId}-grid`} width="20" height="20" patternUnits="userSpaceOnUse">{cad&&variant!=='report'?<path className="sketch-grid-lines" d="M20 0H0V20" fill="none"/>:<circle cx="1" cy="1" r="1" fill="currentColor" opacity=".2"/>}</pattern><marker id={`${svgId}-arrow`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" style={{ fill: 'var(--c-947239)' }}/></marker></defs>
       <rect className="sketch-grid" x={variant==='report'?0:zoom.visible.x} y={variant==='report'?0:zoom.visible.y} width={variant==='report'?440:zoom.visible.w} height={variant==='report'?340:zoom.visible.h} fill={`url(#${svgId}-grid)`}/>
+      <g id={`${svgId}-drawing`}>
       <text x="20" y="24" className="svg-caption">↻ Perímetro horário · face {room?.wallMeasurementFace==='external'?'externa':'interna'} · ângulos internos</text>
       {room && (geometry.segments.length > 0 || room.ceilingHeightM !== null) && (() => {
         const text = `Pé-direito ${room.ceilingHeightM === null ? 'não informado' : Number.isFinite(room.ceilingHeightM) ? format(room.ceilingHeightM) : 'inválido'}`
@@ -120,6 +125,7 @@ export default function Sketch({ project, room, survey, focusElementId, selected
           })}
           {dimensions.get(`${room?.id}|wall:${segment.wall.id}`)&&<ArchitecturalDimensionSketch dimension={dimensions.get(`${room?.id}|wall:${segment.wall.id}`)!} font={10}/>}
 
+          {cad&&variant!=='report'&&<g className="cad-wall-marker" pointerEvents="none"><circle cx={middle.x} cy={middle.y} r="6"/><text x={middle.x} y={middle.y} textAnchor="middle" dominantBaseline="central">{segment.wall.label}</text></g>}
           {index === 0 && !compactLabels && <g className="entry-indicator"><line x1={middle.x - dy * 48} y1={middle.y + dx * 48} x2={middle.x - dy * 9} y2={middle.y + dx * 9} style={{ stroke: 'var(--c-947239)' }} strokeWidth="2" markerEnd={`url(#${svgId}-arrow)`}/><Movable id="entry" box={entry.box} title="entrada principal"><text x={entry.x} y={entry.y} textAnchor="middle">Entrada principal · {segment.wall.label}</text></Movable></g>}
         </g>
       })}
@@ -145,7 +151,10 @@ export default function Sketch({ project, room, survey, focusElementId, selected
       })}
       {/* Objetos por cima dos rótulos, para poderem ser selecionados e arrastados mesmo sob um rótulo. */}
       <RoomObjectSketch onMove={!moveMode && !arrange && room && onObjectsChange && variant !== 'report' ? (objectId, position) => onObjectsChange((room.objects ?? []).map(item => item.id === objectId ? { ...item, position, attachedWallId: undefined, followWallAngle: false } : item)) : undefined} placements={objectPlacements} geometry={geometry} selectedId={selectedObjectId} onSelect={objectId => { setSelection(undefined); setExpanded(false); onSelectObject?.(objectId) }}/>
-    </svg></DragProvider></div>
+      {cad&&room&&geometry.closed&&(()=>{const points=geometry.segments.map(segment=>geometry.project(segment.start)),x=points.reduce((sum,p)=>sum+p.x,0)/points.length,y=points.reduce((sum,p)=>sum+p.y,0)/points.length;return <g className="cad-room-caption" pointerEvents="none"><text x={x} y={y} textAnchor="middle">{room.name}</text>{metrics?.floorAreaM2!=null&&<text x={x} y={y+15} textAnchor="middle" className="cad-room-area">{metrics.areaApproximate?'≈ ':''}{formatMetric(metrics.floorAreaM2,'m²')}</text>}</g>})()}
+      </g></svg></DragProvider></div>
+    {cad&&variant!=='report'&&<><div className="cad-canvas-tools" role="toolbar" aria-label="Ferramentas do desenho"><button aria-label="Selecionar elementos" title="Selecionar" aria-pressed={!moveMode&&!arrange} onClick={()=>{setMoveMode(false);setArrange(false)}}><CadIcon name="select"/></button><button aria-label="Navegar pelo desenho" title="Mover visualização" aria-pressed={moveMode} onClick={()=>{setMoveMode(v=>!v);setArrange(false)}}><CadIcon name="hand"/></button><button aria-label="Ajustar rótulos do desenho" title="Ajustar rótulos" aria-pressed={arrange} onClick={()=>{setArrange(v=>!v);setMoveMode(false);drag.setActive(undefined)}}><CadIcon name="dimension"/></button><button aria-label="Ajustar desenho à vista" title="Ajustar à tela" onClick={zoom.reset}><CadIcon name="zoom"/></button></div><button className="cad-minimap" aria-label="Visão geral — ajustar croqui à tela" title="Visão geral — ajustar à tela" onClick={zoom.reset}><svg viewBox="0 0 440 340" aria-hidden="true"><use href={`#${svgId}-drawing`}/><rect x={zoom.visible.x} y={zoom.visible.y} width={zoom.visible.w} height={zoom.visible.h} className="cad-minimap-view"/></svg></button></>}
+
     {cad&&variant!=='report'?<details className="sketch-options-menu"><summary>Opções do croqui {geometry.segments.length>=3&&!geometry.closed&&<span title="Conferir geometria" aria-label="Conferir geometria">⚠</span>}</summary><div className="sketch-options-content">{sketchOptions}</div></details>:sketchOptions}
   </aside>
 }
