@@ -22,11 +22,25 @@ As rotinas não salvam o `.rvt` automaticamente.
 
 - Escolha o próprio projeto ou uma instância de vínculo arquitetônico carregada
   e visível. Coordenadas do vínculo são transformadas para o projeto PPCI.
-- Escolha a fase arquitetônica; o pavimento vem do nível da vista ativa.
+- Escolha **Ambientes do modelo** ou **Contorno por pontos (sem ambientes)**.
+  O pavimento vem do nível da vista ativa.
+- No modo Ambientes, escolha a fase arquitetônica. A fase da planta atual é a
+  sugestão inicial quando existe uma fase com o mesmo nome na origem.
+  O nível é conferido pelo nível do ambiente, sem confundir seu deslocamento
+  vertical com outro pavimento. Se não encontrar ambientes, o diagnóstico mostra
+  origem, fase, nível e contagens de exclusão e oferece o modo por pontos.
+- No modo por pontos, informe a quantidade de vértices e clique no limite real
+  da área, em ordem. O último vértice fecha com o primeiro automaticamente.
+  Não repita o primeiro ponto. Limites cruzados/sem área são rejeitados.
+  Você pode cadastrar contornos internos para excluir pátios e vãos sem piso.
+  Os contornos são somente dados/prévia: não cria ambientes nem linhas no modelo.
+  Paredes e portas continuam sendo lidas da origem escolhida. As portas não
+  ampliam o limite manual para fora da área selecionada. O contorno deve caber
+  no recorte da planta para que os obstáculos da área estejam disponíveis.
 - O limite inicial é **30 m por caminhamento**, configurável por projeto.
   Não representa distância em linha reta, distância entre hidrantes ou raio
   de um círculo. Não soma alcance de jato à cobertura da mangueira.
-- Os ambientes precisam estar posicionados, delimitados e na fase escolhida.
+- No modo Ambientes, eles precisam estar posicionados, delimitados e na fase escolhida.
   As paredes visíveis são obstáculos; portas com hospedeiro e largura válidos
   formam passagens. Janelas não são usadas como passagens.
 - A saída padrão é **Marcadores genéricos leves no Revit**, sem carregar RFA nem
@@ -68,7 +82,7 @@ As rotinas não salvam o `.rvt` automaticamente.
 ### Precisão e limites
 
 Análise **2D**, com grade conservadora de 0,25 m inicialmente. Faixas junto às
-bordas, espaços menores que a grade, locais sem ambientes e objetos ocultos ou
+bordas, espaços menores que a grade, locais fora dos ambientes/contorno e objetos ocultos ou
 não modelados precisam de revisão. O relatório de células atendidas não certifica
 todos os pontos físicos da edificação. Escadas, mezaninos e atendimento entre
 pavimentos não são calculados.
@@ -126,6 +140,10 @@ Não se presume que todos os projetos futuros estejam no mesmo estado.
 2. Feche a passagem no modelo ou use uma fase em que ela não existe. A outra sala
    deve aparecer desconectada. Teste também um obstáculo obrigando um desvio.
 3. Confira escala/unidades, localização do vínculo rotacionado e fase/pavimento.
+   Teste também sem ambientes: escolha **Contorno por pontos**, indique um limite
+   retangular ou irregular e, se houver, um vão a excluir. Confira os contornos na
+   prévia, a passagem pelas portas e a exclusão do vão. Se o arquitetônico está
+   vinculado, escolha esse vínculo como origem, mesmo usando contorno manual.
 4. Revise as posições; teste **Marcadores genéricos leves no Revit** sem família
    carregada. Confira as posições, os códigos e a visibilidade em planta/3D.
    Repita: os marcadores existentes devem ser reaproveitados e ignorados como

@@ -3,6 +3,7 @@ def hydrant_main():
     sources=source_options()
     initial=configure('Hidrantes · origem do layout',[
         ('source','Modelo arquitetônico',list(sources),'Projeto atual'),
+        ('area','Área a analisar',['Ambientes do modelo','Contorno por pontos (sem ambientes)'],'Ambientes do modelo'),
         ('reach','Alcance máximo por caminhamento (m)',None,'30'),
         ('step','Resolução da análise (m) — menor = mais detalhado',None,'0,25'),
         ('furniture','Considerar móveis e equipamentos como obstáculos',['Sim','Não'],'Sim'),
@@ -11,18 +12,30 @@ def hydrant_main():
     transform=link.GetTotalTransform() if link else DB.Transform.Identity
     reach=number(initial['reach'],1,60);step=number(initial['step'],.1,.5)
     phases={'{} [{}]'.format(name_of(p),p.Id.Value):p for p in source.Phases}
+    current_phase_parameter=view.get_Parameter(DB.BuiltInParameter.VIEW_PHASE)
+    current_phase=doc.GetElement(current_phase_parameter.AsElementId()) if current_phase_parameter else None
+    default_phase=next((label for label,item in phases.items() if current_phase and name_of(item)==name_of(current_phase)),list(phases)[-1])
     config=configure('Hidrantes · pavimento e fase',[
-        ('phase','Fase arquitetônica a analisar',list(phases),list(phases)[-1]),
+        ('phase','Fase arquitetônica (usada no modo Ambientes)',list(phases),default_phase),
         ('review','Resultado',['Marcadores genéricos leves no Revit','Somente proposta (sem criar elementos)','Proposta e inserir família após confirmação'],'Marcadores genéricos leves no Revit'),
     ])
     phase=phases[config['phase']];level=view.GenLevel;z=level.ProjectElevation
     rooms=[];regions=[];holes=[];warnings=[];ignored=[]
+    manual=initial['area']=='Contorno por pontos (sem ambientes)'
     # Rooms are selected by source phase and transformed elevation, not host IDs.
     options=DB.SpatialElementBoundaryOptions()
-    for room in DB.FilteredElementCollector(source).OfCategory(DB.BuiltInCategory.OST_Rooms).WhereElementIsNotElementType():
+    all_rooms=list(DB.FilteredElementCollector(source).OfCategory(DB.BuiltInCategory.OST_Rooms).WhereElementIsNotElementType()) if not manual else []
+    diagnostics={'total_no_modelo':len(all_rooms),'sem_area_ou_posição':0,'outra_fase':0,'outro_nível':0,'não_lidos':0}
+    for room in all_rooms:
         try:
-            if room.Area<=0 or room.Location is None or room.Phase.Id!=phase.Id:continue
-            if abs(transform.OfPoint(room.Location.Point).Z-z)>.5/FT:continue
+            if room.Area<=0 or room.Location is None:
+                diagnostics['sem_area_ou_posição']+=1;continue
+            if room.Phase.Id!=phase.Id:
+                diagnostics['outra_fase']+=1;continue
+            room_level=source.GetElement(room.LevelId)
+            # Room insertion offsets do not determine which floor it belongs to.
+            if room_level is None or abs(transform.OfPoint(DB.XYZ(0,0,room_level.ProjectElevation)).Z-z)>.5/FT:
+                diagnostics['outro_nível']+=1;continue
             loops=room.GetBoundarySegments(options)
             if not loops:ignored.append(int(room.Id.Value));continue
             polygons=[]
@@ -41,9 +54,42 @@ def hydrant_main():
                         raise ValueError('ambiente cortado/fora do recorte da planta; desative o recorte para analisar o pavimento inteiro')
             if polygons:regions.append(polygons[0]);holes.extend(polygons[1:]);rooms.append(room)
         except Exception as error:
+            diagnostics['não_lidos']+=1
             ignored.append(int(room.Id.Value));warnings.append('Ambiente {}: {}'.format(room.Id.Value,error))
     options.Dispose()
-    if not regions:raise ValueError('Nenhum ambiente delimitado na fase/pavimento escolhidos. Crie/confira os ambientes no arquitetônico.')
+    if not regions and not manual:
+        message='Nenhum ambiente delimitado disponível.\nOrigem: {}\nFase: {}\nNível da planta: {}\nAmbientes no modelo: {}; sem área/posição: {}; outra fase: {}; outro nível: {}; falhas: {}.\n\nSe o arquitetônico está em vínculo, confira a origem escolhida.\nDeseja definir a área por pontos, sem criar ambientes?'.format(initial['source'],config['phase'],name_of(level),len(all_rooms),diagnostics['sem_area_ou_posição'],diagnostics['outra_fase'],diagnostics['outro_nível'],diagnostics['não_lidos'])
+        if warnings:message+='\nPrimeiro aviso: '+warnings[0]
+        if WF.MessageBox.Show(message,'Definir área de análise',WF.MessageBoxButtons.YesNo)!=WF.DialogResult.Yes:
+            return {'status':'Sem área de análise; confira origem/fase/nível ou use contorno por pontos.','diagnóstico_ambientes':diagnostics,'avisos':warnings}
+        manual=True
+    if manual:
+        limits=configure('Contorno da área de análise',[
+            ('vertices','Quantidade de vértices do contorno externo',None,'4'),
+            ('holes','Quantidade de pátios/vãos internos a excluir',None,'0'),
+        ])
+        vertex_count=number(limits['vertices'],3,80);hole_count=number(limits['holes'],0,20)
+        if not vertex_count.is_integer() or not hole_count.is_integer():raise ValueError('As quantidades de vértices e vãos devem ser inteiras.')
+        def pick_contour(count,label):
+            points=[]
+            for i in range(count):
+                point=uidoc.Selection.PickPoint('{}: vértice {}/{} — siga a ordem do perímetro; Esc cancela'.format(label,i+1,count))
+                plane_point=DB.XYZ(point.X,point.Y,z)
+                if not within_crop(plane_point,plane_point):raise ValueError('Contorno fora do recorte da planta. Amplie/desative o recorte para incluir os obstáculos da área selecionada.')
+                points.append((point.X*FT,point.Y*FT))
+            return validate_contour(points)
+        finish('Clique os vértices do limite real da área, em ordem. O fechamento entre o último e o primeiro será automático. Exclua pátios/vãos sem piso. As paredes e portas da origem escolhida continuam sendo usadas como obstáculos/passagens.')
+        regions=[pick_contour(int(vertex_count),'Contorno externo')];holes=[]
+        for index in range(int(hole_count)):
+            options_hole=configure('Vão/pátio {}'.format(index+1),[('vertices','Quantidade de vértices',None,'4')])
+            count=number(options_hole['vertices'],3,80)
+            if not count.is_integer():raise ValueError('Quantidade de vértices deve ser inteira.')
+            poly=pick_contour(int(count),'Vão/pátio {}'.format(index+1))
+            if not all(inside(p,regions[0]) for p in poly):raise ValueError('O vão/pátio deve ficar dentro do contorno externo.')
+            holes.append(poly)
+        if ignored:warnings.append('Leitura de ambientes substituída pelo contorno manual; revise o limite selecionado.')
+        ignored=[]
+    analysis_boundaries=list(regions)
     def point2(p):
         p=transform.OfPoint(p);return p.X*FT,p.Y*FT
     def box_polygon(element):
@@ -102,7 +148,10 @@ def hydrant_main():
                 pos=point2(door.Location.Point);t=(pos[0]-a[0])*d[0]+(pos[1]-a[1])*d[1]
                 lo,hi=max(0,t-width/2),min(length,t+width/2)
                 if hi<=lo:continue
-                cuts.append((lo,hi));regions.append(rect(lo,hi,wall_lo-step*2,wall_hi+step*2))
+                cuts.append((lo,hi))
+                # A manual perimeter is a strict limit: opening a door must not
+                # grow the analysis region through the building's outer entrance.
+                if not manual:regions.append(rect(lo,hi,wall_lo-step*2,wall_hi+step*2))
             cuts.sort();cursor=0.;solid=[]
             for lo,hi in cuts:
                 if lo>cursor:solid.append((cursor,lo))
@@ -161,6 +210,8 @@ def hydrant_main():
     result['rotas_m']=[[coordinate(grid,c) for c in route] for route in result['routes']]
     result['limite_m']=reach;result['resolução_m']=step;result['fase']=config['phase'];result['elementos_criados']=[]
     result['projeto']=doc.Title;result['endereço_projeto']=doc.ProjectInformation.Address
+    result['área_de_análise']='Contorno por pontos' if manual else 'Ambientes do modelo'
+    result['diagnóstico_ambientes']=diagnostics;result['contornos_m']=analysis_boundaries;result['exclusões_m']=holes
     result['reserva_instalação_m']=reserve
     result['uncovered']=sorted(result['uncovered']);result['disconnected']=sorted(result['disconnected'])
     result['faixas_de_borda']='Faixas menores que a resolução e células junto aos obstáculos não são certificadas por esta amostragem; revisar na planta.'
@@ -174,6 +225,7 @@ def hydrant_main():
     result['prévia_pontos']=preview_points
     route_points=[[DB.XYZ(x/FT,y/FT,z).ToPoint() for x,y in route] for route in result['rotas_m']]
     result['prévia_rotas']=[[DSLine.ByStartPointEndPoint(a,b) for a,b in zip(points,points[1:])] for points in route_points]
+    result['prévia_contornos']=[[DSLine.ByStartPointEndPoint(DB.XYZ(a[0]/FT,a[1]/FT,z).ToPoint(),DB.XYZ(b[0]/FT,b[1]/FT,z).ToPoint()) for a,b in zip(poly,poly[1:]+poly[:1])] for poly in analysis_boundaries+holes]
     if config['review']=='Somente proposta (sem criar elementos)':
         finish(summary+'\nConsulte a prévia e a saída do nó.');return result
     if result['uncovered'] or result['disconnected'] or ignored:

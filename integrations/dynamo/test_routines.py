@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 import types
 import hydrant_markers as markers
-from route_core import make_grid, nearest, distances, distribute, coordinate
+from route_core import make_grid, nearest, distances, distribute, coordinate, validate_contour
 from build_graphs import build, ROOT
 
 
@@ -12,6 +12,24 @@ def rect(x,y,w,h):return [(x,y),(x+w,y),(x+w,y+h),(x,y+h)]
 
 
 class Routes(unittest.TestCase):
+    def test_manual_contour_accepts_concavity_and_explicit_closure(self):
+        polygon=[(0,0),(4,0),(4,2),(2,2),(2,4),(0,4),(0,0)]
+        self.assertEqual(validate_contour(polygon),polygon[:-1])
+        grid=make_grid([validate_contour(polygon)],[],.25)
+        with self.assertRaises(ValueError):nearest(grid,(3.5,3.5),max_distance=.1)
+
+    def test_invalid_manual_boundaries_are_rejected(self):
+        for polygon in [[(0,0),(1,1)],[(0,0),(2,2),(0,2),(2,0)],[(0,0),(2,0),(2,0),(0,2)],[(0,0),(1,0),(2,0)]]:
+            with self.subTest(polygon=polygon),self.assertRaises(ValueError):validate_contour(polygon)
+
+    def test_manual_area_without_rooms_respects_open_door_and_void(self):
+        boundary=validate_contour([(0,0),(8,0),(8,6),(0,6)])
+        grid=make_grid([boundary],[rect(3.9,0,.2,2),rect(3.9,3.2,.2,2.8),rect(6,4,1,1)],.25)
+        start=nearest(grid,(1,1));target=nearest(grid,(7,1))
+        costs,_=distances(grid,start)
+        self.assertIn(target,costs)
+        with self.assertRaises(ValueError):nearest(grid,(6.5,4.5),max_distance=.1)
+        self.assertTrue(all(0<x<8 and 0<y<6 for x,y in [coordinate(grid,c) for c in grid['cells']]))
     def test_thin_wall_cannot_be_crossed(self):
         grid=make_grid([rect(0,0,8,5)],[rect(3.91,0,.015,5)],.25)
         start=nearest(grid,(1,2));end=nearest(grid,(7,2))

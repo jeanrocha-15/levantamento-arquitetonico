@@ -34,6 +34,21 @@ def bounds(poly):
     return min(p[0] for p in poly), min(p[1] for p in poly), max(p[0] for p in poly), max(p[1] for p in poly)
 
 
+def validate_contour(points):
+    """Manual limits must be explicit simple polygons, never a bounding box guess."""
+    polygon=[tuple(p) for p in points]
+    if len(polygon)>1 and math.dist(polygon[0],polygon[-1])<.001:polygon.pop()
+    if len(polygon)<3:raise ValueError('O contorno precisa de pelo menos três vértices.')
+    for i,(a,b) in enumerate(zip(polygon,polygon[1:]+polygon[:1])):
+        if math.dist(a,b)<.01:raise ValueError('Vértices repetidos/próximos demais no contorno.')
+        for j,(c,d) in enumerate(zip(polygon,polygon[1:]+polygon[:1])):
+            if j<=i or j==i+1 or (i==0 and j==len(polygon)-1):continue
+            if segments_cross(a,b,c,d):raise ValueError('Contorno cruzado; clique os vértices na ordem do perímetro.')
+    area=abs(sum(a[0]*b[1]-a[1]*b[0] for a,b in zip(polygon,polygon[1:]+polygon[:1])))/2
+    if area<.1:raise ValueError('Contorno sem área útil suficiente.')
+    return polygon
+
+
 def make_grid(regions, obstacles, step=.25, max_cells=100000):
     """A cell is usable only when its entire square is inside the region union.
 
