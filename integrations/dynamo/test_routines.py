@@ -2,6 +2,8 @@ import json
 import math
 from pathlib import Path
 import unittest
+import types
+import hydrant_markers as markers
 from route_core import make_grid, nearest, distances, distribute, coordinate
 from build_graphs import build, ROOT
 
@@ -78,6 +80,35 @@ class Graphs(unittest.TestCase):
                 self.assertIn('def endpoint_candidates',python['Code'])
                 self.assertIn('Todas as paredes visíveis',python['Code'])
                 self.assertIn('Externas + trechos principais',python['Code'])
+            else:
+                self.assertIn('Marcadores genéricos leves no Revit',python['Code'])
+                self.assertIn('if is_hydrant_marker(element):return None',python['Code'])
+
+
+class Markers(unittest.TestCase):
+    def test_only_our_markers_are_ignored_and_names_remain_unique_after_deletion(self):
+        self.assertTrue(markers.is_hydrant_marker(types.SimpleNamespace(ApplicationId=markers.MARKER_APP)))
+        self.assertFalse(markers.is_hydrant_marker(types.SimpleNamespace(ApplicationId='another-tool')))
+        self.assertFalse(markers.is_hydrant_marker(types.SimpleNamespace()))
+        self.assertEqual(markers.next_marker_label({'H-P001','H-P003'}),'H-P002')
+        self.assertNotEqual(markers.marker_context('level1',1),markers.marker_context('level1',2))
+        self.assertNotEqual(markers.marker_context('level1',1),markers.marker_context('level2',1))
+
+    def test_duplicate_detection_uses_current_geometry_and_correct_phase_level(self):
+        class Vec:
+            def __init__(self,x,y,z=0):self.X,self.Y,self.Z=x,y,z
+            def Add(self,b):return Vec(self.X+b.X,self.Y+b.Y,self.Z+b.Z)
+            def Multiply(self,k):return Vec(self.X*k,self.Y*k,self.Z*k)
+        context=markers.marker_context('level1',1)
+        bbox=types.SimpleNamespace(Min=Vec(0,0),Max=Vec(1,1),Transform=types.SimpleNamespace(OfPoint=lambda p:p))
+        element=types.SimpleNamespace(ApplicationId=markers.MARKER_APP,ApplicationDataId=context+'H-P001',get_BoundingBox=lambda view:bbox)
+        markers.FT=.3048
+        self.assertTrue(markers.marker_matches(element,context,Vec(.5,.5)))
+        self.assertFalse(markers.marker_matches(element,markers.marker_context('level2',1),Vec(.5,.5)))
+        self.assertFalse(markers.marker_matches(element,context,Vec(20,20)))
+        bbox.Min,bbox.Max=Vec(19.5,19.5),Vec(20.5,20.5)
+        self.assertTrue(markers.marker_matches(element,context,Vec(20,20)))
+        self.assertFalse(markers.marker_matches(element,context,Vec(.5,.5)))
 
 
 if __name__=='__main__':unittest.main()

@@ -13,7 +13,7 @@ def hydrant_main():
     phases={'{} [{}]'.format(name_of(p),p.Id.Value):p for p in source.Phases}
     config=configure('Hidrantes · pavimento e fase',[
         ('phase','Fase arquitetônica a analisar',list(phases),list(phases)[-1]),
-        ('review','Resultado',['Somente proposta (sem criar elementos)','Proposta e inserir após confirmação'],'Somente proposta (sem criar elementos)'),
+        ('review','Resultado',['Marcadores genéricos leves no Revit','Somente proposta (sem criar elementos)','Proposta e inserir família após confirmação'],'Marcadores genéricos leves no Revit'),
     ])
     phase=phases[config['phase']];level=view.GenLevel;z=level.ProjectElevation
     rooms=[];regions=[];holes=[];warnings=[];ignored=[]
@@ -47,6 +47,7 @@ def hydrant_main():
     def point2(p):
         p=transform.OfPoint(p);return p.X*FT,p.Y*FT
     def box_polygon(element):
+        if is_hydrant_marker(element):return None
         box=element.get_BoundingBox(None)
         if box is None:return None
         corners=[transform.OfPoint(box.Transform.OfPoint(DB.XYZ(x,y,v))) for x in (box.Min.X,box.Max.X) for y in (box.Min.Y,box.Max.Y) for v in (box.Min.Z,box.Max.Z)]
@@ -177,6 +178,8 @@ def hydrant_main():
         finish(summary+'\nConsulte a prévia e a saída do nó.');return result
     if result['uncovered'] or result['disconnected'] or ignored:
         finish(summary+'\nInserção bloqueada: confira áreas não atendidas/ambientes não lidos.');return result
+    if config['review']=='Marcadores genéricos leves no Revit':
+        return insert_hydrant_markers(result,level,z,summary)
     types={}
     for symbol in DB.FilteredElementCollector(doc).OfClass(DB.FamilySymbol):
         # User chooses the actual loaded hydrant type; no guessed family names.

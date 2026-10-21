@@ -48,7 +48,7 @@ def graph(name,description,body):
 def build():
     common=(ROOT/'revit_common.py').read_text(encoding='utf-8')+'\n'
     for filename,name,description,core in [
-        ('hidrantes.py','LAC_Hidrantes_Layout','Proposta de hidrantes por caminhamento; revisar antes de inserir.',(ROOT/'route_core.py').read_text(encoding='utf-8')+'\n'),
+        ('hidrantes.py','LAC_Hidrantes_Layout','Proposta de hidrantes por caminhamento com marcadores leves; revisar antes de inserir.',(ROOT/'route_core.py').read_text(encoding='utf-8')+'\n'+(ROOT/'hydrant_markers.py').read_text(encoding='utf-8')+'\n'),
         ('cotas_gerais.py','LAC_Cotas_Gerais','Cotas gerais e encadeadas com referências nativas de paredes.',dimension_helpers()),
     ]:
         code=common+core+(ROOT/filename).read_text(encoding='utf-8')

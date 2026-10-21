@@ -14,7 +14,7 @@ necessário instalar o pyRevit nem copiar os fontes junto dos arquivos.
 5. Os resultados e avisos ficam na saída `OUT` do nó Python. Para hidrantes,
    habilite a prévia geométrica de fundo do Dynamo.
 
-Comece pela proposta de hidrantes, que não cria elementos no modelo. A inserção
+Para analisar sem criar elementos, escolha **Somente proposta**. A inserção
 e as cotas usam grupos de transações nativas, desfeitos pelo comando Desfazer.
 As rotinas não salvam o `.rvt` automaticamente.
 
@@ -29,6 +29,19 @@ As rotinas não salvam o `.rvt` automaticamente.
 - Os ambientes precisam estar posicionados, delimitados e na fase escolhida.
   As paredes visíveis são obstáculos; portas com hospedeiro e largura válidos
   formam passagens. Janelas não são usadas como passagens.
+- A saída padrão é **Marcadores genéricos leves no Revit**, sem carregar RFA nem
+  consultar a lista de famílias. Após a análise e confirmação, cria referências
+  azuis na categoria **Modelos genéricos**, identificadas H-P001, H-P002 etc.
+  O código fica nos parâmetros Nome/Marca e a finalidade fica em Comentários.
+  Vocês podem usar os pontos como referência para posicionar a família definitiva.
+- Cada marcador é um sólido simples de 16 × 16 cm e 1,50 m de altura gráfica,
+  começando 2 cm acima do nível para aparecer na planta usual e no 3D. Essas
+  dimensões não representam o equipamento real. Não cria materiais nem carrega
+  famílias. A visibilidade depende da categoria e da faixa de vista da planta.
+- Marcadores próprios a até 0,50 m, no mesmo nível/fase, são reconhecidos pela
+  posição atual e não duplicados. Os próprios marcadores são ignorados como
+  obstáculos nas execuções seguintes. Outros modelos genéricos continuam sendo
+  considerados. Não apaga nem reposiciona referências de propostas antigas.
 - Pilares, modelos genéricos e, opcionalmente, móveis/equipamentos são obstáculos.
   Suas caixas envolventes são conservadoras; podem bloquear passagens que existem
   na realidade. Portas sem largura reconhecida permanecem bloqueadas.
@@ -38,7 +51,8 @@ As rotinas não salvam o `.rvt` automaticamente.
 - A saída mostra posições e percursos críticos na prévia do Dynamo, sem criar
   linhas permanentes no Revit. Consulte `posições_m`, `rotas_m`, `uncovered`,
   `disconnected`, `avisos`, fase, endereço e demais dados do relatório.
-- A opção de inserir pede o tipo real de hidrante carregado, a altura e a
+- A opção alternativa **Proposta e inserir família após confirmação** pede o
+  tipo real de hidrante carregado, a altura e a
   confirmação da proposta. Famílias baseadas em nível são aceitas. No projeto
   próprio também são aceitas famílias hospedadas em parede. Para vínculo,
   famílias hospedadas em parede não são aceitas; use uma família baseada em
@@ -112,7 +126,10 @@ Não se presume que todos os projetos futuros estejam no mesmo estado.
 2. Feche a passagem no modelo ou use uma fase em que ela não existe. A outra sala
    deve aparecer desconectada. Teste também um obstáculo obrigando um desvio.
 3. Confira escala/unidades, localização do vínculo rotacionado e fase/pavimento.
-4. Revise as posições; teste a inserção com sua família real. Confira hospedeiro,
+4. Revise as posições; teste **Marcadores genéricos leves no Revit** sem família
+   carregada. Confira as posições, os códigos e a visibilidade em planta/3D.
+   Repita: os marcadores existentes devem ser reaproveitados e ignorados como
+   obstáculos. Se quiser usar o modo família, confira hospedeiro,
    orientação e altura, especialmente famílias hospedadas em parede.
 5. Execute novamente: instâncias idênticas próximas não devem ser duplicadas.
 6. Rode cotas em um retângulo com paredes internas e depois em uma planta diagonal.
@@ -122,7 +139,7 @@ Não se presume que todos os projetos futuros estejam no mesmo estado.
 Verificações locais: compilação sintática dos scripts incorporados, estrutura e
 conexões dos grafos e testes do algoritmo de caminhamento. **Os arquivos ainda
 precisam ser executados no Dynamo hospedado no Revit**, especialmente a criação
-de instâncias da família escolhida e a aceitação de referências para as cotas.
+dos marcadores/instâncias e a aceitação de referências para as cotas.
 
 ## Manutenção
 
